@@ -75,6 +75,12 @@ void       Reply_Wait(int sec);
 //
 XrdCmsReq *Reply_WaitResp(int sec=0);
 
+// The following function returs the node number associated with the request
+// or the node number and node instance.
+//
+int        Node() {return static_cast<int>(ReqNnum);}
+int        Node(int &Nins) {Nins = ReqNins; return static_cast<int>(ReqNnum);}
+
            XrdCmsReq(XrdCmsNode *nP, unsigned int id, char adv=0);
            XrdCmsReq(XrdCmsReq  *rP, unsigned int rn);
           ~XrdCmsReq() {}

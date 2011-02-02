@@ -66,7 +66,7 @@ XrdCmsKeyItem *XrdCmsKeyItem::Alloc(unsigned int theTock)
            kP->Key.TODRef = TockTable[theTock];
            TockTable[theTock] = kP;
            if (!(kP->Key.Ref++)) kP->Key.Ref = 1;
-            kP->Loc.roPend = kP->Loc.rwPend = 0;
+           kP->Loc.roPend = kP->Loc.rwPend = kP->Loc.spPend = 0;
            return kP;
           }
        numNull++;

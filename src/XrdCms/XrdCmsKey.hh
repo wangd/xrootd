@@ -37,6 +37,9 @@ short             Len;
 unsigned char     TOD;
 unsigned char     Ref;
 
+void              Init(char *key=0, int klen=0)
+                      {TODRef=0; Val=key; Hash=0; Len=klen; Ref='\0';}
+
 void              setHash();
 
 inline int        Equiv(XrdCmsKey &oth)
@@ -75,26 +78,28 @@ SMask_t        hfvec;    // Servers that are staging or have the file
 SMask_t        pfvec;    // Servers that are staging         the file
 SMask_t        qfvec;    // Servers that are not yet queried
 unsigned int   TOD_B;    // Server currency clock
-unsigned int   Reserved;
 union {
 unsigned int   HashSave; // Where hash goes upon item unload
 int            deadline;
       };
 short          roPend;   // Redirectors waiting for R/O response
 short          rwPend;   // Redirectors waiting for R/W response
+short          spPend;   // Redirectors waiting for QRR response (special file)
+short          Reserved;
 
 inline 
 XrdCmsKeyLoc&  operator=(const XrdCmsKeyLoc &rhs)
                            {hfvec=rhs.hfvec; pfvec=rhs.pfvec; TOD_B=rhs.TOD_B;
                             deadline = rhs.deadline;
                             roPend = rhs.roPend; rwPend = rhs.rwPend;
+                            spPend = rhs.spPend;
                             return *this;
                            }
 
-               XrdCmsKeyLoc() : roPend(0), rwPend(0) {}
+               XrdCmsKeyLoc() : roPend(0), rwPend(0), spPend(0) {}
               ~XrdCmsKeyLoc() {}
 };
-  
+
 /******************************************************************************/
 /*                   C l a s s   X r d C m s K e y I t e m                    */
 /******************************************************************************/
@@ -140,5 +145,55 @@ static XrdCmsKeyItem *Free;
 static int            numFree;
 static int            numHave;
 static int            numNull;
+};
+  
+/******************************************************************************/
+/*                          X r d C m s K e y R e f                           */
+/******************************************************************************/
+  
+// The XrdCmsKeyRef object allows one to generate a logical reference to the
+// a XrdCmsKeyItem object in the cache. It can be used to extract out the key
+// value (i.e., path) without needing to duplicate it. This, of course, works
+// if the reference is still valid so the user of this object should not expect
+// that the reference will alsways be successfully resolved.
+//
+class XrdCmsKeyRef
+{
+public:
+friend class XrdCmsCache;
+
+inline int            Refs(XrdCmsKeyItem *kI) {return (kI == Item);}
+
+inline int            Refs(XrdCmsKey     &kI) {return (Item == kI.TODRef);}
+
+inline XrdCmsKeyRef&  operator=(XrdCmsKey &rhs)
+                               {Item = rhs.TODRef; Hash = rhs.Hash;
+                                Len  = rhs.Len; Ref = rhs.Ref;
+                                return *this;
+                               }
+
+inline XrdCmsKeyRef&  operator=(XrdCmsKeyItem &rhs)
+                               {Item = &rhs; Hash = rhs.Key.Hash;
+                                Len  = rhs.Key.Len; Ref = rhs.Key.Ref;
+                                return *this;
+                               }
+
+       XrdCmsKeyRef() : Item(0), Hash(0), Len(0), Ref(0) {}
+      ~XrdCmsKeyRef() {}
+
+private:
+
+inline XrdCmsKeyItem *Deref()
+                           {if (Item && Item->Key.Hash == Hash
+                            &&          Item->Key.Ref  == Ref
+                            &&          Item->Key.Len  == Len) return Item;
+                            return 0;
+                           }
+
+XrdCmsKeyItem    *Item;
+unsigned int      Hash;
+short             Len;
+unsigned char     Ref;
+unsigned char     Rsv;
 };
 #endif

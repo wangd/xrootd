@@ -30,6 +30,7 @@ const char *XrdCmsNodeCVSID = "$Id$";
 #include "XrdCms/XrdCmsCache.hh"
 #include "XrdCms/XrdCmsCluster.hh"
 #include "XrdCms/XrdCmsConfig.hh"
+#include "XrdCms/XrdCmsEvent.hh"
 #include "XrdCms/XrdCmsManager.hh"
 #include "XrdCms/XrdCmsManList.hh"
 #include "XrdCms/XrdCmsManTree.hh"
@@ -352,7 +353,7 @@ const char *XrdCmsNode::do_Have(XrdCmsRRData &Arg)
 {
    EPNAME("do_Have")
    XrdCmsPInfo  pinfo;
-   int isnew, Opts;
+   int isnew, pFlags, Opts = 0;
 
 // Do some debugging
 //
@@ -361,8 +362,10 @@ const char *XrdCmsNode::do_Have(XrdCmsRRData &Arg)
 
 // Find if we can handle the file in r/w mode and if staging is present
 //
-   Opts = (Cache.Paths.Find(Arg.Path, pinfo) && (pinfo.rwvec & NodeMask)
-        ? XrdCmsSelect::Write : 0);
+   if ((pFlags = Cache.Paths.Find(Arg.Path, pinfo)))
+      {if (pinfo.rwvec & NodeMask) Opts = XrdCmsSelect::Write;
+       if (pFlags & XrdCmsPList::Special) Opts |= XrdCmsSelect::Special;
+      }
    if (Arg.Request.modifier & CmsHaveRequest::Pending)
       Opts |= XrdCmsSelect::Pending;
 
@@ -370,6 +373,7 @@ const char *XrdCmsNode::do_Have(XrdCmsRRData &Arg)
 //
    if (!Config.asManager()) isnew = 1;
       else {XrdCmsSelect Sel(XrdCmsSelect::Advisory|Opts,Arg.Path,Arg.PathLen-1);
+            Sel.NodeNum = ID(Sel.NodeIns);
             Sel.Path.Hash = Arg.Request.streamid;
             isnew = Cache.AddFile(Sel, NodeMask);
            }
@@ -478,6 +482,7 @@ const char *XrdCmsNode::do_Locate(XrdCmsRRData &Arg)
 
 // Grab the refresh option (the only one we support)
 //
+   Sel.InfoR = 0;
    if (Arg.Opts & CmsLocateRequest::kYR_refresh) 
       {Sel.Opts  = XrdCmsSelect::Refresh; *toP++='s';}
    if (Arg.Opts & CmsLocateRequest::kYR_asap)
@@ -676,13 +681,15 @@ const char *XrdCmsNode::do_Mv(XrdCmsRRData &Arg)
 // Note that we will scuttle the mv if the target file exists somewhere.
 //
    if (!Config.DiskOK)
-      {XrdCmsSelect Sel1(XrdCmsSelect::Defer, Arg.Path, strlen(Arg.Path ));
-       XrdCmsSelect Sel2(XrdCmsSelect::Defer, Arg.Path2,strlen(Arg.Path2));
+      {XrdCmsSelect Sel1(XrdCmsSelect::Defer|XrdCmsSelect::isMeta,
+                         Arg.Path, strlen(Arg.Path ));
+       XrdCmsSelect Sel2(XrdCmsSelect::Defer|XrdCmsSelect::isMeta,
+                         Arg.Path2,strlen(Arg.Path2));
 
        // Setup select data (note that mv does not allow fast redirect)
        //
        Sel2.iovP = 0; Sel2.iovN = 0;
-       Sel2.InfoP = 0;  // No fast redirects
+       Sel2.InfoP = 0;Sel2.InfoR = 0;// No fast redirects
        Sel2.nmask = SMask_t(0);
 
        // Perform selection
@@ -889,6 +896,7 @@ const char *XrdCmsNode::do_Rmdir(XrdCmsRRData &Arg)
 const char *XrdCmsNode::do_Select(XrdCmsRRData &Arg)
 {
    EPNAME("do_Select")
+   XrdCmsReq Req(this, Arg.Request.streamid);
    XrdCmsRRQInfo reqInfo(Instance, RSlot, Arg.Request.streamid);
    XrdCmsSelect Sel(XrdCmsSelect::Peers, Arg.Path, Arg.PathLen-1);
    struct iovec ioV[2];
@@ -898,12 +906,10 @@ const char *XrdCmsNode::do_Select(XrdCmsRRData &Arg)
 // Do a callout to the external manager if we have one
 //
    if (Arg.Opts & CmsSelectRequest::kYR_stat && Xmi_Stat)
-      {XrdCmsReq Req(this, Arg.Request.streamid);
-       if (Xmi_Stat->Stat(&Req, Arg.Path, Arg.Opaque)) return 0;
-      } else 
+      {if (Xmi_Stat->Stat(&Req, Arg.Path, Arg.Opaque)) return 0;}
+      else
    if (Xmi_Select)
-      {XrdCmsReq Req(this, Arg.Request.streamid);
-       int opts = (Arg.Opts & CmsSelectRequest::kYR_write ? XMI_RW : 0);
+      {int opts = (Arg.Opts & CmsSelectRequest::kYR_write ? XMI_RW : 0);
        if (Arg.Opts & CmsSelectRequest::kYR_create) opts |= XMI_NEW;
        if (Arg.Opts & CmsSelectRequest::kYR_trunc)  opts |= XMI_TRUNC;
        if (Xmi_Select->Select(&Req, opts, Arg.Path, Arg.Opaque)) return 0;
@@ -911,7 +917,7 @@ const char *XrdCmsNode::do_Select(XrdCmsRRData &Arg)
 
 // Init select data (note that refresh supresses fast redirects)
 //
-   Sel.iovP  = 0; Sel.iovN  = 0; Sel.InfoP = &reqInfo;
+   Sel.iovP  = 0; Sel.iovN  = 0; Sel.InfoP = &reqInfo; Sel.InfoR = &Req;
 
 // Complete the arguments to select
 //
@@ -932,7 +938,10 @@ const char *XrdCmsNode::do_Select(XrdCmsRRData &Arg)
             if (Arg.Opts & CmsSelectRequest::kYR_replica)
                {Sel.Opts |= XrdCmsSelect::Replica;                 *toP++='+';}
            }
+         if (Arg.Opts & CmsSelectRequest::kYR_prty)
+           {Sel.Opts |= XrdCmsSelect::Prty;                        *toP++='P';}
         }
+   Sel.rSeq = Arg.rSeq;
    *toP = '\0';
 
 // Check if an avoid node present. If so, this is ineligible for fast redirect.
@@ -942,7 +951,7 @@ const char *XrdCmsNode::do_Select(XrdCmsRRData &Arg)
       {unsigned int IPaddr;
        char *Comma;
        DEBUGR(theopts <<' ' <<Arg.Path <<" avoiding " <<Avoid);
-       Sel.InfoP = 0;
+       Sel.InfoP = 0; Sel.InfoR = 0;
        do {if ((Comma = index(Avoid,','))) *Comma = '\0';
            if (*Avoid == '+') Sel.nmask |= Cluster.getMask(Avoid+1);
               else if (XrdNetDNS::Host2IP(Avoid, &IPaddr))
@@ -1020,14 +1029,15 @@ int XrdCmsNode::do_SelPrep(XrdCmsPrepArgs &Arg) // Static!!!
 
 // Setup select data (note that prepare does not allow fast redirect)
 //
-   Sel.InfoP = 0;  // No fast redirects
+   Sel.InfoP = 0; Sel.InfoR = 0; // No fast redirects
    Sel.nmask = SMask_t(0);
 
 // Check if co-location wanted relevant only when staging wanted
 //
    if (Arg.clPath && Sel.iovP)
       {XrdCmsSelect Scl(XrdCmsSelect::Peers, Arg.clPath, strlen(Arg.clPath));
-       Scl.iovP = 0; Scl.iovN  = 0; Scl.InfoP = 0; Scl.nmask = SMask_t(0);
+       Scl.iovP = 0; Scl.iovN  = 0; Scl.InfoP = 0; Sel.InfoR = 0;
+       Scl.nmask = SMask_t(0);
        DEBUGR("colocating " <<Arg.path <<" w.r.t. " <<Arg.clPath);
        rc = Cluster.Select(Scl);
        if (rc > 0) {Sched->Schedule((XrdJob *)&Arg, rc+time(0));
@@ -1124,7 +1134,7 @@ const char *XrdCmsNode::do_State(XrdCmsRRData &Arg)
 //
    if (isMan) Arg.Request.modifier = do_StateFWD(Arg);
       else if (Config.DiskOK)
-              Arg.Request.modifier = isOnline(Arg.Path, 0);
+              Arg.Request.modifier = isOnline(Arg.Path, noResp);
               else return 0;
 
 // Respond appropriately
@@ -1175,9 +1185,9 @@ int XrdCmsNode::do_StateFWD(XrdCmsRRData &Arg)
 
 // Return true if anyone has the file at this point
 //
-   if (Sel.Vec.hf != 0) return CmsHaveRequest::Online;
-   if (Sel.Vec.pf != 0) return CmsHaveRequest::Pending;
-                        return 0;
+   if (Sel.Vec.hf & ~Sel.Vec.pf) return CmsHaveRequest::Online;
+   if (Sel.Vec.pf)               return CmsHaveRequest::Pending;
+                                 return 0;
 }
   
 /******************************************************************************/
@@ -1341,6 +1351,11 @@ const char *XrdCmsNode::do_Status(XrdCmsRRData &Arg)
    if (add2Activ || add2Stage)
        {CmsState.Update(XrdCmsState::Counts, add2Activ, add2Stage);
         Say.Emsg("Node", Name(), srvMsg, stgMsg);
+        if (Evp_rsSrv && add2Activ)
+           {XrdCmsEvent *evP = Evp_rsSrv;
+            int noGo = add2Activ < 0 || isDisable || isOffline;
+            do {evP = evP->rstSrv(this, noGo);} while(evP);
+           }
        }
 
    return 0;
@@ -1604,13 +1619,14 @@ int XrdCmsNode::getSize(const char *theSize, long long &Size)
   
 int XrdCmsNode::isOnline(char *path, int upt) // Static!!!
 {
-   static const int Sopts = XRDOSS_resonly | XRDOSS_updtatm;
+   static const int Sopts1 = XRDOSS_resonly | XRDOSS_updtatm;
+   static const int Sopts2 = XRDOSS_resonly;
    struct stat buf;
 
 // Issue stat() via oss plugin. If it fails. the file may still exist in the
 // prepare queue (i.e., logically present).
 //
-   if (Config.ossFS->Stat(path, &buf, Sopts))
+   if (Config.ossFS->Stat(path, &buf, (upt ? Sopts1 : Sopts2)))
       {if (Config.DiskSS && PrepQ.Exists(path)) return CmsHaveRequest::Pending;
           else return 0;
       }

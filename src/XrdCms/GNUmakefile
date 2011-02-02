@@ -36,6 +36,7 @@ SRCSRVR = \
         XrdCmsCache.cc       \
         XrdCmsCluster.cc     \
         XrdCmsConfig.cc      \
+        XrdCmsEvent.cc       \
         XrdCmsJob.cc         \
         XrdCmsKey.cc         \
         XrdCmsManList.cc     \
@@ -48,6 +49,7 @@ SRCSRVR = \
         XrdCmsPrepArgs.cc    \
         XrdCmsPrepare.cc     \
         XrdCmsProtocol.cc    \
+        XrdCmsQRR.cc         \
         XrdCmsReq.cc         \
         XrdCmsRouting.Cc     \
         XrdCmsRRQ.cc         \
@@ -77,6 +79,7 @@ OBJSRVR = \
         $(OBJDIR)/XrdCmsCache.o       \
         $(OBJDIR)/XrdCmsCluster.o     \
         $(OBJDIR)/XrdCmsConfig.o      \
+        $(OBJDIR)/XrdCmsEvent.o       \
         $(OBJDIR)/XrdCmsJob.o         \
         $(OBJDIR)/XrdCmsKey.o         \
         $(OBJDIR)/XrdCmsManList.o     \
@@ -89,6 +92,7 @@ OBJSRVR = \
         $(OBJDIR)/XrdCmsPrepArgs.o    \
         $(OBJDIR)/XrdCmsPrepare.o     \
         $(OBJDIR)/XrdCmsProtocol.o    \
+        $(OBJDIR)/XrdCmsQRR.o         \
         $(OBJDIR)/XrdCmsReq.o         \
         $(OBJDIR)/XrdCmsRouting.o     \
         $(OBJDIR)/XrdCmsRRQ.o         \
@@ -159,7 +163,7 @@ $(OBJDIR)/XrdCmsAdmin.o:     XrdCmsAdmin.cc      XrdCmsAdmin.hh \
 
 $(OBJDIR)/XrdCmsCache.o:     XrdCmsCache.cc      XrdCmsCache.hh \
                              XrdCmsKey.hh        XrdCmsNash.hh \
-                             XrdCmsPList.hh      XrdCmsRRQ.hh \
+                             XrdCmsPList.hh      XrdCmsQRR.hh    XrdCmsRRQ.hh \
                              XrdCmsSelect.hh     XrdCmsTypes.hh \
                              XrdSysPthread.hh    XrdSysTimer.hh \
                              XrdJob.hh           XrdScheduler.hh
@@ -200,6 +204,7 @@ $(OBJDIR)/XrdCmsClientMan.o: XrdCmsClientMan.cc   XrdCmsClientMan.hh \
 $(OBJDIR)/XrdCmsCluster.o:   XrdCmsCluster.cc    XrdCmsCluster.hh \
                              XrdCmsCache.hh      XrdCmsConfig.hh \
                              XrdCmsKey.hh        XrdCmsNode.hh \
+                             XrdCmsReq.hh \
                              XrdCmsSelect.hh     XrdCmsState.hh \
                              XrdCmsTrace.hh      XrdCmsTypes.hh \
                              XrdNetDNS.hh        XrdOucPup.hh \
@@ -218,7 +223,7 @@ $(OBJDIR)/XrdCmsConfig.o:    XrdCmsConfig.cc     XrdCmsConfig.hh \
                              XrdCmsNode.hh       XrdCmsPList.hh \
                              XrdCmsPrepare.hh    XrdCmsPrepArgs.hh \
                              XrdCmsProtocol.hh   XrdCmsRRQ.hh \
-                             XrdCmsSecurity.hh \
+                             XrdCmsSecurity.hh   XrdCmsQRR.hh \
                              XrdCmsState.hh      XrdCmsSupervisor.hh \
                              XrdCmsTrace.hh      XrdCmsTypes.hh \
                              XrdCmsXmi.hh        XrdCmsXmiReq.hh \
@@ -254,6 +259,11 @@ $(OBJDIR)/XrdCmsFinder.o:    XrdCmsFinder.cc     XrdCmsFinder.hh \
                              YProtocol.hh
 	@echo Compiling XrdCmsFinder.cc 
 	$(ECHO)$(CC) -c $(CFLAGS) $(INCLUDE) -o $(OBJDIR)/XrdCmsFinder.o XrdCmsFinder.cc
+
+$(OBJDIR)/XrdCmsEvent.o:     XrdCmsEvent.cc      XrdCmsEvent.hh \
+                             XrdSysPthread.hh
+	@echo Compiling XrdCmsEvent.cc 
+	$(ECHO)$(CC) -c $(CFLAGS) $(INCLUDE) -o $(OBJDIR)/XrdCmsEvent.o XrdCmsEvent.cc
 
 $(OBJDIR)/XrdCmsJob.o:       XrdCmsJob.cc        XrdCmsJob.hh \
                              XrdCmsProtocol.hh   XrdCmsRRData.hh \
@@ -325,7 +335,7 @@ $(OBJDIR)/XrdCmsNash.o:      XrdCmsNash.cc       XrdCmsNash.hh \
 $(OBJDIR)/XrdCmsNode.o:      XrdCmsNode.cc       XrdCmsNode.hh \
                              XrdCmsCache.hh      XrdCmsCluster.hh \
                              XrdCmsConfig.hh     XrdCmsKey.hh \
-                             XrdCmsManager.hh \
+                             XrdCmsManager.hh    XrdCmsEvent.hh \
                              XrdCmsManList.hh    XrdCmsManTree.hh \
                              XrdCmsMeter.hh      XrdCmsPList.hh \
                              XrdCmsPrepare.hh    XrdCmsRRData.hh \
@@ -350,7 +360,7 @@ $(OBJDIR)/XrdCmsParser.o:    XrdCmsParser.cc     XrdCmsParser.hh \
 	$(ECHO)$(CC) -c $(CFLAGS) $(INCLUDE) -o $(OBJDIR)/XrdCmsParser.o XrdCmsParser.cc
 
 $(OBJDIR)/XrdCmsPList.o:     XrdCmsPList.cc      XrdCmsPList.hh \
-                             XrdCmsTypes.hh \
+                             XrdCmsTypes.hh      XrdOucTList.hh \
                              XrdSysPthread.hh
 	@echo Compiling XrdCmsPList.cc 
 	$(ECHO)$(CC) -c $(CFLAGS) $(INCLUDE) -o $(OBJDIR)/XrdCmsPList.o XrdCmsPList.cc
@@ -379,7 +389,7 @@ $(OBJDIR)/XrdCmsPrepare.o:   XrdCmsPrepare.cc    XrdCmsPrepare.hh \
 
 $(OBJDIR)/XrdCmsProtocol.o:  XrdCmsProtocol.cc   XrdCmsProtocol.hh \
                              XrdCmsCache.hh      XrdCmsCluster.hh \
-                             XrdCmsConfig.hh     XrdCmsJob.hh \
+                             XrdCmsConfig.hh     XrdCmsJob.hh  XrdCmsEvent.hh \
                              XrdCmsLogin.hh      XrdCmsManager.hh \
                              XrdCmsManTree.hh    XrdCmsMeter.hh \
                              XrdCmsParser.hh     XrdCmsRouting.hh \
@@ -395,6 +405,19 @@ $(OBJDIR)/XrdCmsProtocol.o:  XrdCmsProtocol.cc   XrdCmsProtocol.hh \
                              YProtocol.hh
 	@echo Compiling XrdCmsProtocol.cc 
 	$(ECHO)$(CC) -c $(CFLAGS) $(INCLUDE) -o $(OBJDIR)/XrdCmsProtocol.o XrdCmsProtocol.cc
+
+$(OBJDIR)/XrdCmsQRR.o:       XrdCmsQRR.cc        XrdCmsQRR.hh \
+                             XrdCmsCluster.hh    XrdCmsEvent.hh \
+                             XrdCmsNode.hh       XrdCmsReq.hh \
+                             XrdCmsSelect.hh     XrdCmsTrace.hh \
+                             XrdCmsTypes.hh      XrdCmsCache.hh \
+                             XrdSysError.hh      XrdSysPthread.hh \
+                             XrdSysTimer.hh \
+                             XrdJob.hh           XrdScheduler.hh \
+                             XPtypes.hh \
+                             YProtocol.hh
+	@echo Compiling XrdCmsQRR.cc
+	$(ECHO)$(CC) -c $(CFLAGS) $(INCLUDE) -o $(OBJDIR)/XrdCmsQRR.o XrdCmsQRR.cc
 
 $(OBJDIR)/XrdCmsReq.o:       XrdCmsReq.cc        XrdCmsReq.hh \
                              XrdCmsNode.hh       XrdCmsRRQ.hh \

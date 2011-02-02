@@ -35,6 +35,12 @@ XrdCmsPList_Anchor Paths;
 //
 int         AddFile(XrdCmsSelect &Sel, SMask_t mask);
 
+// Convert() converts a keyref to a key, if possible. Conversion fails if
+//           keyref no longer is valid or if the size of the value buffer
+//           in the key is too small. Upon success returns 1 o/w 0.
+//
+int         Convert(XrdCmsKeyRef &Ref, XrdCmsKey &Key);
+
 // DelFile() returns true if this is the last deletion, false otherwise
 //
 int         DelFile(XrdCmsSelect &Sel, SMask_t mask);
@@ -69,8 +75,10 @@ void       *TickTock();
 
 private:
 
-void          Add2Q(XrdCmsRRQInfo *Info, XrdCmsKeyItem *cp, int isrw);
-void          Dispatch(XrdCmsKeyItem *cinfo, short roQ, short rwQ);
+int           Add2Q(XrdCmsRRQInfo *Info, XrdCmsKeyItem *iP, int isRW);
+int           Add2Q(XrdCmsSelect &Sel, XrdCmsKeyItem *cp, SMask_t mask);
+void          Dispatch(XrdCmsKeyItem *iP, short roQ, short rwQ);
+void          Dispatch(XrdCmsSelect &Sel, XrdCmsKeyItem *cinfo, SMask_t mask);
 SMask_t       getBVec(unsigned int todA, unsigned int &todB);
 void          Recycle(XrdCmsKeyItem *theList);
 

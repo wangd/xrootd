@@ -50,6 +50,7 @@ const char *XrdCmsConfigCVSID = "$Id$";
 #include "XrdCms/XrdCmsPrepare.hh"
 #include "XrdCms/XrdCmsPrepArgs.hh"
 #include "XrdCms/XrdCmsProtocol.hh"
+#include "XrdCms/XrdCmsQRR.hh"
 #include "XrdCms/XrdCmsRRQ.hh"
 #include "XrdCms/XrdCmsSecurity.hh"
 #include "XrdCms/XrdCmsState.hh"
@@ -450,6 +451,7 @@ int XrdCmsConfig::ConfigXeq(char *var, XrdOucStream &CFile, XrdSysError *eDest)
    TS_Xeq("remoteroot",    xrmtrt);  // Any,     non-dynamic
    TS_Xeq("role",          xrole);   // Server,  non-dynamic
    TS_Xeq("seclib",        xsecl);   // Server,  non-dynamic
+   TS_Xeq("special",       xspec);   // Manager, non-dynamic
    TS_Set("wait",          doWait);  // Server,  non-dynamic (backward compat)
    TS_unSet("nowait",      doWait);  // Server,  non-dynamic
    TS_Xeq("xmilib",        xxmi);    // Any,     non-dynamic
@@ -670,6 +672,15 @@ void XrdCmsConfig::ConfigDefaults(void)
    SecLib      = 0;
    ossLib      = 0;
    ossFS       = 0;
+   maxQRRSlots = 2048;
+   maxQRRDatas = 2560; // 130% of slots
+   maxQRRSLWP  = -1;
+   maxQRRDLWP  = -1;
+   selQRRWait  = 5;
+   tmoQRRWait  = 30;
+   tmoQRRTries = 15;
+   cbWait      = 5940;
+   iniQRR      = 0;
 }
   
 /******************************************************************************/
@@ -977,6 +988,11 @@ int XrdCmsConfig::setupManager()
 // Initialize the fast redirect queue
 //
    RRQ.Init(LUPHold, LUPDelay);
+
+// Initialize the slow redirect queue if we have special paths
+//
+   if (iniQRR) QRR.Init(maxQRRSlots, maxQRRDatas, selQRRWait, tmoQRRWait,
+                        tmoQRRTries, maxQRRDLWP,  maxQRRSLWP);
 
 // Initialize the security interface
 //
@@ -2435,6 +2451,108 @@ int XrdCmsConfig::xspace(XrdSysError *eDest, XrdOucStream &CFile)
         DiskHWM = static_cast<int>(hwm);
        }
     return 0;
+}
+
+/******************************************************************************/
+/*                                 x s p e c                                  */
+/******************************************************************************/
+
+/* Function: xspec
+
+   Purpose:  To parse the directive: special {* [<opts1>] | <path> [<opts2>]}
+
+             <*>       Allows the specification of default special file options.
+             <opts1>   One or more of the following:
+                       cbwait <t>  - max time for client to wait for callback
+                       pdelay <t>  - time between re-polls for waiting requests
+                       ptries <n>  - number of polls before retrying query
+                       r/o         - accept only read-only  registrations
+                       r/w         - accept only read-write registrations
+                       qslots <n>  - the number of query     slots to allocate
+                       qthrds <n>  - the number of query   threads to allocate
+                       rslots <m>  - the number of request   slots to allocate
+                       rthrds <n>  - the number of request threads to allocate
+                       sdelay <t>  - how long to delay before reselection (ms)
+
+             <path>    The path to be treated as a root for special files.
+             <opts2>   One or more of the following: r/o | r/w
+
+   Type: Manager only, non-dynamic.
+
+   Output: 0 upon success or !0 upon failure.
+*/
+
+int XrdCmsConfig::xspec(XrdSysError *eDest, XrdOucStream &CFile)
+{
+    static const int isTime = 1;
+    static int Opts = XrdCmsPList::Special;
+    static struct specopts {const char *opname; int *oploc; int aval; int oval;}
+    spopts[] =
+       {
+        {"cbwait",    &cbWait     ,  isTime             , 0                  },
+        {"pdelay",    &tmoQRRWait ,  isTime             , 0                  },
+        {"ptries",    &tmoQRRTries,  0                  , 0                  },
+        {"r/o",       0           , -1                  , XrdCmsPList::ROnly },
+        {"r/w",       0           , ~XrdCmsPList::ROnly , XrdCmsPList::ROnly },
+        {"qslots",    &maxQRRSlots,  0                  , 0                  },
+        {"qthrds",    &maxQRRSLWP,   0                  , 0                  },
+        {"rslots",    &maxQRRDatas,  0                  , 0                  },
+        {"rthrds",    &maxQRRDLWP,   0                  , 0                  },
+        {"sdelay",    &selQRRWait ,  isTime             , 0                  }
+       };
+    static int numopts = sizeof(spopts)/sizeof(struct specopts);
+    const char *etxt = "invalid special option";
+    char sPath[MAXPATHLEN], opname[16], *val;
+    int i, ppp;
+
+// If we are a server, ignore this option
+//
+   if (!isManager) return CFile.noEcho();
+
+// Get path
+//
+   val = CFile.GetWord();
+   if (!val || !val[0])
+      {eDest->Emsg("Config", "special path not specified"); return 1;}
+
+// Determine what we are actually processing
+//
+   if (*val != '/')
+      {if (strcmp("*", val))
+          {eDest->Emsg("Config", "invalid special path -", val); return 1;}
+       *sPath = 0;
+      } else strcpy(sPath, val);
+
+// Process the options
+//
+    while((val = CFile.GetWord()))
+         {for (i = 0; i < numopts; i++)
+              if (!strcmp(val, spopts[i].opname)) break;
+          if (i >= numopts)
+             {eDest->Say("Config warning: ignoring invalid special option '",val,"'.");
+              continue;
+             }
+          if (spopts[i].oploc)
+             {if (*sPath)
+                 {eDest->Say("Config warning: ignoring improper special option '",val,"'.");
+                  continue;
+                 }
+              strcpy(opname,val);
+              if (!(val = CFile.GetWord()))
+                 {eDest->Say("special ", opname, " value not specified.");
+                  return 1;
+                 }
+              if (spopts[i].aval == isTime)
+                 {if (XrdOuca2x::a2tm(*eDest,etxt,val,&ppp,1)) return 1;}
+                 else if (XrdOuca2x::a2i(*eDest,etxt,val,&ppp,1)) return 1;
+                 *spopts[i].oploc = ppp;
+             } else Opts = (Opts & spopts[i].aval) | spopts[i].oval;
+         }
+
+// Now add this path to the cache if an actual path here
+//
+   if (*sPath) {Cache.Paths.Special(sPath, Opts); iniQRR = 1;}
+   return 0;
 }
   
 /******************************************************************************/

@@ -89,6 +89,7 @@ XrdCmsParseInit XrdCmsParseArgN(XrdCmsRRData::Arg_Null,    "",
                                 XrdCmsRRData::Arg_theLoad, "load",
                                 XrdCmsRRData::Arg_Info,    "info",
                                 XrdCmsRRData::Arg_Port,    "port",
+                                XrdCmsRRData::Arg_rSeq,    "rseq",
                                 0,                         (const char *)0
                                );
 
@@ -146,7 +147,7 @@ XrdOucPupArgs XrdCmsParser::fwdArgC[] =
 /*4*/         setPUP1(XrdCmsRRData::Arg_Datlen,EndFill,XrdCmsRRData, Request.datalen)
             };
 
-// {locate, select} <id> <opts> <path> [<opq> [<avoid>]]
+// {locate, select} <id> <opts> <path> [<opq> [<avoid> [<rseq>]]]
 //
 XrdOucPupArgs XrdCmsParser::locArgs[] =
 /*0*/        {setPUP1(XrdCmsRRData::Arg_Ident,   char, XrdCmsRRData, Ident),
@@ -156,7 +157,8 @@ XrdOucPupArgs XrdCmsParser::locArgs[] =
 /*4*/         setPUP0(Fence),
 /*5*/         setPUP1(XrdCmsRRData::Arg_Opaque,  char, XrdCmsRRData, Opaque),
 /*6*/         setPUP1(XrdCmsRRData::Arg_Avoid,   char, XrdCmsRRData, Avoid),
-/*7*/         setPUP1(XrdCmsRRData::Arg_Datlen,EndFill,XrdCmsRRData, Request.datalen)
+/*7*/         setPUP1(XrdCmsRRData::Arg_rSeq,    int,  XrdCmsRRData, rSeq),
+/*8*/         setPUP1(XrdCmsRRData::Arg_Datlen,EndFill,XrdCmsRRData, Request.datalen)
              };
 
 // prepadd <id> <reqid> <notify> <prty> <mode> <path> [<opaque>]

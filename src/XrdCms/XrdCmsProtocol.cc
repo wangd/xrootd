@@ -34,6 +34,7 @@ const char *XrdCmsProtocolCVSID = "$Id$";
 #include "XrdCms/XrdCmsCache.hh"
 #include "XrdCms/XrdCmsCluster.hh"
 #include "XrdCms/XrdCmsConfig.hh"
+#include "XrdCms/XrdCmsEvent.hh"
 #include "XrdCms/XrdCmsJob.hh"
 #include "XrdCms/XrdCmsLogin.hh"
 #include "XrdCms/XrdCmsManager.hh"
@@ -394,6 +395,7 @@ void XrdCmsProtocol::Pander(const char *manager, int mport)
 //
 int XrdCmsProtocol::Process(XrdLink *lp)
 {
+   XrdCmsEvent *evP;
    const char *Reason;
    Bearing     myWay;
    int         tOut;
@@ -418,6 +420,7 @@ int XrdCmsProtocol::Process(XrdLink *lp)
 //
    if (RSlot)
       {RTable.Del(myNode); RSlot  = 0;
+       if ((evP = Evp_adRdr)) do {evP = evP->drpRdr(myNode);} while(evP);
        myNode->UnLock(); delete myNode; myNode = 0;
        return -1;
       }
@@ -428,6 +431,7 @@ int XrdCmsProtocol::Process(XrdLink *lp)
 //
    if (myNode)
       {myNode->isConn = 0;
+       if ((evP = Evp_adSrv)) do {evP = evP->drpSrv(myNode);} while(evP);
        if (myNode->isBound) Cluster.Remove(0, myNode, !loggedIn);
           else if (myNode->isGone) delete myNode;
               else myNode->UnLock();
@@ -467,6 +471,7 @@ XrdCmsRouting *XrdCmsProtocol::Admit()
 {
    EPNAME("Admit");
    char         myBuff[1024];
+   XrdCmsEvent *evP;
    XrdCmsLogin  Source(myBuff, sizeof(myBuff));
    CmsLoginData Data;
    const char  *Reason;
@@ -602,6 +607,11 @@ XrdCmsRouting *XrdCmsProtocol::Admit()
    if (Config.asManager()) {Manager.Reset(); myNode->SyncSpace();}
    myNode->isDisable = 0;
 
+// If there is an event call-out, invoke it now
+//
+   if ((evP = Evp_adSrv))
+      do {evP = evP->addSrv(myNode,myNode->isSuspend);} while(evP);
+
 // Document the login
 //
    Say.Emsg("Protocol", myNode->Ident,
@@ -621,6 +631,7 @@ XrdCmsRouting *XrdCmsProtocol::Admit_Redirector(int wasSuspended)
    EPNAME("Admit_Redirector");
    static CmsStatusRequest newState 
                    = {{0, kYR_status, CmsStatusRequest::kYR_Resume, 0}};
+   XrdCmsEvent *evP;
 
 // Indicate what role I have
 //
@@ -634,6 +645,11 @@ XrdCmsRouting *XrdCmsProtocol::Admit_Redirector(int wasSuspended)
       {Say.Emsg("Protocol",myNode->Ident,"login failed; too many redirectors.");
        return 0;
       } else myNode->setSlot(RSlot);
+
+// If there is an event call-out, invoke it now
+//
+   if ((evP = Evp_adRdr))
+      do {evP = evP->addRdr(myNode,myNode->isSuspend);} while(evP);
 
 // If we told the redirector we were suspended then we must check if that is no
 // longer true and generate a reume event as the redirector may have missed it

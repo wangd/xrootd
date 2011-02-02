@@ -15,6 +15,7 @@
 const char *XrdCmsPListCVSID = "$Id$";
   
 #include "XrdCms/XrdCmsPList.hh"
+#include "XrdOuc/XrdOucTList.hh"
 
 /******************************************************************************/
 /*                                   A d d                                    */
@@ -78,7 +79,7 @@ int XrdCmsPList_Anchor::Find(const char *pname, XrdCmsPInfo &pinfo)
 // All done
 //
    UnLock();
-   return p != 0;
+   return (p ? static_cast<int>(p->pathflags) : 0);
 }
 
 /******************************************************************************/
@@ -166,7 +167,39 @@ void XrdCmsPList_Anchor::Remove(SMask_t mask)
 }
 
 /******************************************************************************/
-/*                                  F i n d                                   */
+/*                               S p e c i a l                                */
+/******************************************************************************/
+  
+void XrdCmsPList_Anchor::Special(const char *Path, int Opts)
+{
+   XrdOucTList *nSP, *pSP = 0, *xSP = specPaths;
+   int ival[2], plen = strlen(Path);
+
+// Lock the anchor and setup for search
+//
+   Lock();
+   Opts |= XrdCmsPList::Valid;
+
+// Find matching entry
+//
+   while(xSP)
+        {if (xSP->ival[1] < plen) break;
+         if (xSP->ival[1] == plen && !strcmp(xSP->text, Path))
+            {xSP->ival[0] = Opts; return;}
+         pSP = xSP; xSP = xSP->next;
+        }
+
+// Chain new special path into the list
+//
+   ival[0] = Opts; ival[1] = plen;
+   nSP = new XrdOucTList(Path, ival, xSP);
+   if (pSP) pSP->next = nSP;
+      else  specPaths = nSP;
+   UnLock();
+}
+  
+/******************************************************************************/
+/*                                  T y p e                                   */
 /******************************************************************************/
   
 const char *XrdCmsPList_Anchor::Type(const char *pname)

@@ -32,6 +32,7 @@ const char *XrdCmsClusterCVSID = "$Id$";
 #include "XrdCms/XrdCmsConfig.hh"
 #include "XrdCms/XrdCmsCluster.hh"
 #include "XrdCms/XrdCmsNode.hh"
+#include "XrdCms/XrdCmsReq.hh"
 #include "XrdCms/XrdCmsState.hh"
 #include "XrdCms/XrdCmsSelect.hh"
 #include "XrdCms/XrdCmsTrace.hh"
@@ -297,6 +298,71 @@ SMask_t XrdCmsCluster::Broadcast(SMask_t smask, XrdCms::CmsRRHdr &Hdr,
 //
    Hdr.datalen = htons(static_cast<unsigned short>(Dlen));
    return Broadcast(smask, ioV, 2, Dlen+sizeof(Hdr));
+}
+
+/******************************************************************************/
+/*                                  D e s t                                   */
+/******************************************************************************/
+  
+int XrdCmsCluster::Dest(int Num, int Ins, int &port, char *hbuff, int hlen)
+{
+   int nLen = 0;
+   char *nName;
+   XrdCmsNode *nP;
+
+// Obtain a lock on the table
+//
+   STMutex.Lock();
+
+// Find the node in question and if valid, send it a message
+//
+   if (Num >= 0 && Num <= STHi && (nP = NodeTab[Num]) && Ins == nP->Inst())
+      {nName = nP->Name(nLen, port);
+       if (nLen >= hlen) nLen = 0;
+       strcpy(hbuff, nName);
+      }
+
+// All done
+//
+   STMutex.UnLock();
+   return nLen;
+}
+
+/******************************************************************************/
+
+int XrdCmsCluster::Dest(SMask_t mask, int &port, char *hbuff, int hlen)
+{
+   XrdCmsNode *nP, *sP = 0;
+   int i, nLen = 0, NodeNum = -1;
+   char *nName;
+
+// Obtain a lock on the table
+//
+   STMutex.Lock();
+
+// Scan for a node (sP points to the selected one)
+//
+   for (i = 0; i <= STHi; i++)
+       if ((nP = NodeTab[i]) && (nP->NodeMask & mask))
+          {if (nP->isOffline || nP->isSuspend || nP->isDisable) continue;
+           if (!sP) sP = nP;
+              else if (sP->RefR > nP->RefR) sP=nP;
+          }
+
+// Check for overloaded node and return result
+//
+   if (sP)
+      {SelRcnt++; sP->RefR++;
+       nName = nP->Name(nLen, port);
+       if (nLen >= hlen) NodeNum = -1;
+          else NodeNum = sP->NodeID;
+       strcpy(hbuff, nName);
+      }
+
+// All done
+//
+   STMutex.UnLock();
+   return NodeNum;
 }
 
 /******************************************************************************/
@@ -694,9 +760,12 @@ int XrdCmsCluster::Select(XrdCmsSelect &Sel)
    XrdCmsPInfo  pinfo;
    const char  *Amode;
    int dowt = 0, retc, isRW, fRD, noSel = (Sel.Opts & XrdCmsSelect::Defer);
+   int pFlags, Normal = 1;
    SMask_t amask, smask, pmask;
 
-// Establish some local options
+// Establish establish the initial fast redirect setting, fRD. Fast redirects
+// are normally allowed for r/o files. When writing a file, the RWDelay setting
+// determines what we do. It is set by the 'delay rw' directive.
 //
    if (Sel.Opts & XrdCmsSelect::Write) 
       {isRW = 1; Amode = "write";
@@ -707,14 +776,22 @@ int XrdCmsCluster::Select(XrdCmsSelect &Sel)
       }
       else {isRW = 0; Amode = "read"; fRD = 1;}
 
-// Find out who serves this path
+// Find out who serves this path. This determines the amask which corresponds
+// to the set of servers capable of serving the file, excluding avoided servers.
 //
-   if (!Cache.Paths.Find(Sel.Path.Val, pinfo)
+   if (!(pFlags = Cache.Paths.Find(Sel.Path.Val, pinfo))
    || (amask = ((isRW ? pinfo.rwvec : pinfo.rovec) & ~Sel.nmask)) == 0)
       {Sel.Resp.DLen = snprintf(Sel.Resp.Data, sizeof(Sel.Resp.Data)-1,
                        "No servers have %s access to the file", Amode)+1;
        return -1;
       }
+
+// Special files require additional processing which applies only at the
+// moment we need to select a node. Additionally, special files are not
+// currently available via staging.
+//
+   if (pFlags & XrdCmsPList::Special && !(Sel.Opts & XrdCmsSelect::isMeta))
+      {Normal = 0; pinfo.ssvec = 0;}
 
 // If either a refresh is wanted or we didn't find the file, re-prime the cache
 // which will force the client to wait. Otherwise, compute the primary and
@@ -785,19 +862,36 @@ int XrdCmsCluster::Select(XrdCmsSelect &Sel)
 //
    if (noSel) return 0;
 
-// Select a node
+// Select a node for the normal case. For special files more needs to be done
 //
-   if (dowt || (retc = SelNode(Sel, pmask, smask)) < 0)
-      {Sel.Resp.DLen = snprintf(Sel.Resp.Data, sizeof(Sel.Resp.Data)-1,
+   if (Normal)
+      {if (dowt || (retc = SelNode(Sel, pmask, smask)) < 0)
+          {Sel.Resp.DLen = snprintf(Sel.Resp.Data, sizeof(Sel.Resp.Data)-1,
                        "No servers are available to %s%s the file.",
                        Sel.Opts & XrdCmsSelect::Online ? "immediately " : "",
                        (smask ? "stage" : Amode))+1;
-       return -1;
+           return -1;
+          }
+       return retc;
       }
 
-// All done
+// Perform selection for special files
 //
-   return retc;
+   Sel.Opts |= XrdCmsSelect::Special;
+   if (pmask && (retc = SelNode(Sel, pmask)) >= 0) return retc;
+
+// Either the selection failed or we have skipped selection. Determine whether
+// to place the request in callback mode or issue an error.
+//
+   if (pmask && pmask == Sel.Vec.hf && retc == -1)
+      {Sel.Resp.DLen = snprintf(Sel.Resp.Data, sizeof(Sel.Resp.Data)-1,
+                       "No servers are available to %s the file.", Amode)+1;
+       return -1;
+      }
+   if (!Sel.InfoR) return Config.LUPDelay;
+   Sel.InfoR = Sel.InfoR->Reply_WaitResp(Config.cbWait);
+   if ((retc = Cache.WT4File(Sel, Sel.Vec.hf))) Sel.InfoR->Reply_Wait(retc);
+   return 0;
 }
 
 /******************************************************************************/
@@ -862,6 +956,37 @@ int XrdCmsCluster::SelFail(XrdCmsSelect &Sel, int rc)
     return -1;
 }
   
+/******************************************************************************/
+/*                                  S e n d                                   */
+/******************************************************************************/
+  
+int XrdCmsCluster::Send(int Num, int Ins, const struct iovec *iod,
+                        int iovcnt, int iotot)
+{
+   int rc;
+   XrdCmsNode *nP;
+
+// Obtain a lock on the table
+//
+   STMutex.Lock();
+
+// Find the node in question and if valid, send it a message
+//
+   if (Num <= STHi && (nP = NodeTab[Num]) && Ins == nP->Inst())
+      {nP->Lock();
+       STMutex.UnLock();
+       rc = nP->Send(iod, iovcnt, iotot);
+       nP->UnLock();
+      } else {
+       STMutex.UnLock();
+       rc = -1;
+      }
+
+// Return result
+//
+   return rc != -1;
+}
+
 /******************************************************************************/
 /*                                 S p a c e                                  */
 /******************************************************************************/
@@ -1200,6 +1325,7 @@ int XrdCmsCluster::SelNode(XrdCmsSelect &Sel, SMask_t pmask, SMask_t amask)
    if (nP)
       {strcpy(Sel.Resp.Data, nP->Name(Sel.Resp.DLen, Sel.Resp.Port));
        Sel.Resp.DLen++; Sel.smask = nP->NodeMask;
+       Sel.NodeNum = nP->ID(Sel.NodeIns);
        if (isalt || (Sel.Opts & XrdCmsSelect::Create) || Sel.iovN)
           {if (isalt || (Sel.Opts & XrdCmsSelect::Create))
               {Sel.Opts |= (XrdCmsSelect::Pending | XrdCmsSelect::Advisory);
@@ -1235,6 +1361,7 @@ int XrdCmsCluster::SelNode(XrdCmsSelect &Sel, SMask_t pmask, SMask_t amask)
        if (nP)
           {strcpy(Sel.Resp.Data, nP->Name(Sel.Resp.DLen, Sel.Resp.Port));
            Sel.Resp.DLen++; Sel.smask = nP->NodeMask;
+           Sel.NodeNum = nP->ID(Sel.NodeIns);
            if (Sel.iovN && Sel.iovP) nP->Send(Sel.iovP, Sel.iovN);
            nP->UnLock();
            TRACE(Stage, "Peer " <<Sel.Resp.Data <<" handling " <<Sel.Path.Val);
@@ -1250,6 +1377,64 @@ int XrdCmsCluster::SelNode(XrdCmsSelect &Sel, SMask_t pmask, SMask_t amask)
        return delay;
       }
    return -1;
+}
+
+/******************************************************************************/
+
+int XrdCmsCluster::SelNode(XrdCmsSelect &Sel, SMask_t pmask)
+{
+   XrdCmsNode *np = 0, *sp = 0;
+   const char *reason = 0;
+   int i, j, Start, numd, nump, nums, delay = 0;
+   int First1 = 1, isRW = (Sel.Opts & XrdCmsSelect::Write);
+
+// Obtain a starting point if possible. Otherwise, use round robbin selection.
+//
+   if (Sel.rSeq) Start = Sel.rSeq%STMax;
+      else First1 = Start = 0;
+   int sVec[2] = {Start, 0}, tVec[2] = {STHi+1, Start};
+
+// Scan for a node (sp points to the selected one)
+//
+   nump = nums = numd = 0; // possible, suspended, and dead
+   STMutex.Lock();
+   for (j = 0; j <= 1; j++)
+   for (i = sVec[j]; i < tVec[j]; i++)
+       if ((np = NodeTab[i]) && (np->NodeMask & pmask))
+          {nump++;
+           if (np->isOffline)                   {numd++; continue;}
+           if (np->isSuspend || np->isDisable)  {nums++; continue;}
+           if (!sp) {sp = np; if (First1) break;}
+              else if (isRW)
+                      {if (sp->RefA > (np->RefA+Config.DiskLinger)) sp=np;}
+                      else if (sp->RefR > np->RefR) sp=np;
+          }
+
+// If we don't have a node check to see if we can delay the client
+//
+   if (!sp)
+      {STMutex.UnLock();
+       if (!(Sel.Opts & XrdCmsSelect::Special) || (nump != nums))
+          {calcDelay(nump, numd, 0, 0, nums, delay, &reason);
+           if (delay) {Record(Sel.Path.Val, reason); return delay;}
+          }
+       return -(1+nump);
+      }
+
+// We have a node.
+//
+   if (isRW) {SelAcnt++; sp->RefA++;}  // Protected by STMutex
+      else   {SelRcnt++; sp->RefR++;}
+   sp->Lock();
+   STMutex.UnLock();
+
+// Return relevant information to the caller
+//
+   strcpy(Sel.Resp.Data, sp->Name(Sel.Resp.DLen, Sel.Resp.Port));
+   Sel.Resp.DLen++; Sel.smask = sp->NodeMask;
+   Sel.NodeNum = sp->ID(Sel.NodeIns);
+   sp->UnLock();
+   return 0;
 }
 
 /******************************************************************************/

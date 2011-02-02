@@ -48,6 +48,13 @@ public:
 
         void   Removed(const char *path) {}
 
+        void   Resume (int Perm=1)       {}
+        void   Suspend(int Perm=1)       {}
+
+        int    Resource(int n)           {return 0;}
+        int    Reserve (int n)           {return 0;}
+        int    Release (int n)           {return 0;}
+
         void   setSS(XrdOss *thess) {}
 
         int    Space(XrdOucErrInfo &Resp, const char *path);
@@ -61,8 +68,9 @@ private:
 int              Decode(char **resp);
 void             Inform(XrdCmsClientMan *xman, struct iovec xmsg[], int xnum);
 XrdCmsClientMan *SelectManager(XrdOucErrInfo &Resp, const char *path);
+XrdCmsClientMan *SelectManager(XrdOucErrInfo &Resp, int);
 void             SelectManFail(XrdOucErrInfo &Resp);
-int              send2Man(XrdOucErrInfo &, const char *, struct iovec *, int);
+int              send2Man(XrdOucErrInfo &, const char *, int, struct iovec *, int);
 int              StartManagers(XrdOucTList *);
 
 XrdCmsClientMan *myManTable[MaxMan];
@@ -106,6 +114,13 @@ public:
 
         void   Removed(const char *path);
 
+        void   Resume (int Perm=1);
+        void   Suspend(int Perm=1);
+
+        int    Resource(int n);
+        int    Reserve (int n);
+        int    Release (int n);
+
         int    RunAdmin(char *Path);
 
         int    Space(XrdOucErrInfo &Resp, const char *path) {return 0;}
@@ -123,9 +138,12 @@ int   Process(XrdCmsRRData &Data);
 XrdOss        *SS;
 XrdOucStream  *CMSp;
 XrdSysMutex    myData;
-int            myPort;
+XrdSysMutex    rrMutex;
+int            resMax;
+int            resCur;
 char          *CMSPath;
 char          *Login;
+int            myPort;
 int            isRedir;
 int            isProxy;
 int            Active;

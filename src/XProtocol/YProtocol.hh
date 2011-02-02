@@ -389,20 +389,25 @@ struct CmsRmdirRequest
 /*                        s e l e c t   R e q u e s t                         */
 /******************************************************************************/
   
-// Request: <id> select[s] {c | d | m | r | w | s | t | x} <path> [-host]
+// Request: <id> <opts> <path> [[+]avoid] [rgrp]
 
-// Note: selects - requests a cache refresh for <path>
-// kYR_refresh   - refresh file location cache
+// kYR_refresh s - refresh file location cache
 // kYR_create  c - file will be created
 // kYR_delete  d - file will be created or truncated
 // kYR_metaop  m - inod will only be modified
+// kYR_prty    P - queue this ahead of other requests
 // kYR_read    r - file will only be read
-// kYR_replica   - file will replicated
+// kYR_replica + - file will be a replica
 // kYR_write   w - file will be read and writen
-// kYR_stats   s - only stat information will be obtained
-// kYR_online  x - consider only online files
-//                 may be combined with kYR_stats (file must be resident)
-//             - - the host failed to deliver the file.
+// kYR_stat    x - only stat information will be obtained
+// kYR_trunc   t - file will be truncated on open
+// kYR_online  o - consider only online files
+//                 may be combined with kYR_stat (file must be resident)
+
+// [+]avoid      - a comma separated list of hosts or clusters (when prefixed
+//                 by a plus) to avoid in the selection process.
+
+// rgrp          - The request group number to use for optimal distribution.
 
 
 struct CmsSelectRequest
@@ -418,11 +423,13 @@ enum  {kYR_refresh = 0x0001,
        kYR_write   = 0x0020,
        kYR_stat    = 0x0040, // Exclsuive
        kYR_metaop  = 0x0080,
-       kYR_replica = 0x0100  // Only in combination with create
+       kYR_replica = 0x0100, // Only in combination with create
+       kYR_prty    = 0x0200  // Only honored for special paths
       };
 //     kXR_string    Path;
 //     kXR_string    Opaque; // Optional
 //     kXR_string    Host;   // Optional
+//     kXR_int       rGroup; // Optional
 };
 
 /******************************************************************************/
@@ -448,7 +455,7 @@ struct CmsStateRequest
 //     kXR_string    Path;
 
 enum  {kYR_refresh = 0x01,   // Modifier
-       kYR_noresp  = 0x02
+       kYR_noresp  = 0x02    // No response wanted
       };
 };
   

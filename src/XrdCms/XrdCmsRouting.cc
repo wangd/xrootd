@@ -147,6 +147,7 @@ XrdCmsRouting::theRouting initSRVrouting[] =
       {kYR_stats,   XrdCmsRouting::AsyncQ0 | XrdCmsRouting::noArgs},
       {kYR_trunc,   XrdCmsRouting::AsyncQ1},
       {kYR_try,     XrdCmsRouting::isSync},
+      {kYR_update,  XrdCmsRouting::isSync  | XrdCmsRouting::noArgs},
       {kYR_usage,   XrdCmsRouting::isSync  | XrdCmsRouting::noArgs},
       {0,           0}};
 }

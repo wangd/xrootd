@@ -18,6 +18,7 @@ const char *XrdCmsCacheCVSID = "$Id$";
 #include <sys/types.h>
 
 #include "XrdCms/XrdCmsCache.hh"
+#include "XrdCms/XrdCmsQRR.hh"
 #include "XrdCms/XrdCmsRRQ.hh"
 #include "XrdCms/XrdCmsTrace.hh"
 
@@ -138,6 +139,8 @@ int XrdCmsCache::AddFile(XrdCmsSelect &Sel, SMask_t mask)
               else   {if (!iP->Loc.rwPend) iP->Loc.deadline = 0;
                       if (iP->Loc.roPend) Dispatch(iP, iP->Loc.roPend, 0);
                      }
+           if (iP->Loc.spPend && !(Sel.Opts & XrdCmsSelect::Pending))
+               iP->Loc.spPend = QRR.Ready(iP, Sel, mask, iP->Loc.spPend);
           }
       } else if (!(Sel.Opts & XrdCmsSelect::Advisory))
                 {Sel.Path.TOD = Tock;
@@ -156,6 +159,30 @@ int XrdCmsCache::AddFile(XrdCmsSelect &Sel, SMask_t mask)
 //
    myMutex.UnLock();
    return isnew;
+}
+  
+/******************************************************************************/
+/* Public                        C o n v e r t                                */
+/******************************************************************************/
+  
+int XrdCmsCache::Convert(XrdCmsKeyRef &Ref, XrdCmsKey &Key)
+{
+   XrdCmsKeyItem *iP;
+
+// Serialize processing
+//
+   myMutex.Lock();
+
+// Dereference the the keyref
+//
+   if ((iP = Ref.Deref()) && iP->Key.Len < Key.Len)
+      {strcpy(Key.Val, iP->Key.Val); Key.Len = iP->Key.Len;}
+      else iP = 0;
+
+// All done
+//
+   myMutex.UnLock();
+   return iP != 0;
 }
   
 /******************************************************************************/
@@ -190,6 +217,7 @@ int XrdCmsCache::DelFile(XrdCmsSelect &Sel, SMask_t mask)
        && (!(Sel.Opts & XrdCmsSelect::Advisory))
        && (XrdCmsKeyItem::Unload(iP) && !CTable.Recycle(iP)))
           Say.Emsg("DelFile", "Delete failed for", iP->Key.Val);
+       if (gone4good && iP->Loc.spPend) QRR.Del(iP, iP->Loc.spPend);
       } else gone4good = 0;
 
 // All done
@@ -289,7 +317,8 @@ int XrdCmsCache::WT4File(XrdCmsSelect &Sel, SMask_t mask)
 
 // Make sure we have the proper information. If so, lock the hash table
 //
-   if (!Sel.InfoP) return DLTime;
+   if ((Sel.Opts & XrdCmsSelect::Special ? Sel.InfoR == 0 : Sel.InfoP == 0))
+      return DLTime;
    myMutex.Lock();
 
 // Look up the entry and if valid add it to the callback queue. Note that
@@ -297,10 +326,12 @@ int XrdCmsCache::WT4File(XrdCmsSelect &Sel, SMask_t mask)
 //
    if (!(iP = Sel.Path.TODRef) || !(iP->Key.Equiv(Sel.Path))) retc = DLTime;
       else if (iP->Loc.hfvec != mask)                         retc = 1;
-              else {Now = time(0);                            retc = 0;
+              else {Now = time(0);
                     if (iP->Loc.deadline && iP->Loc.deadline <= Now)
                         iP->Loc.deadline = DLTime + Now;
-                    Add2Q(Sel.InfoP, iP, Sel.Opts & XrdCmsSelect::Write);
+                    retc = (Sel.Opts & XrdCmsSelect::Special
+                         ? Add2Q(Sel, iP, mask)
+                         : Add2Q(Sel.InfoP,iP,Sel.Opts & XrdCmsSelect::Write));
                    }
 
 // Return result
@@ -414,7 +445,7 @@ void *XrdCmsCache::TickTock()
 /*                                 A d d 2 Q                                  */
 /******************************************************************************/
   
-void XrdCmsCache::Add2Q(XrdCmsRRQInfo *Info, XrdCmsKeyItem *iP, int isrw)
+int XrdCmsCache::Add2Q(XrdCmsRRQInfo *Info, XrdCmsKeyItem *iP, int isrw)
 {
    short Slot = (isrw ? iP->Loc.rwPend : iP->Loc.roPend);
 
@@ -422,9 +453,20 @@ void XrdCmsCache::Add2Q(XrdCmsRRQInfo *Info, XrdCmsKeyItem *iP, int isrw)
 //
    Info->Key = iP;
    Info->isRW= isrw;
-   if (!(Slot = RRQ.Add(Slot, Info))) Info->Key = 0;
+   if (!(Slot = RRQ.Add(Slot, Info))) {Info->Key = 0; return DLTime;}
       else if (isrw) iP->Loc.rwPend = Slot;
                else  iP->Loc.roPend = Slot;
+   return 0;
+}
+
+/******************************************************************************/
+  
+int XrdCmsCache::Add2Q(XrdCmsSelect &Sel, XrdCmsKeyItem *iP, SMask_t mask)
+{
+
+// Place on defered queue
+//
+   return (QRR.Add(Sel, mask, iP->Loc.spPend) ? 0 : DLTime);
 }
 
 /******************************************************************************/
@@ -489,6 +531,7 @@ void XrdCmsCache::Recycle(XrdCmsKeyItem *theList)
         {theList = iP->Key.TODRef;
          if (iP->Loc.roPend) RRQ.Del(iP->Loc.roPend, iP);
          if (iP->Loc.rwPend) RRQ.Del(iP->Loc.rwPend, iP);
+         if (iP->Loc.spPend) QRR.Del(iP, iP->Loc.spPend);
          myMutex.Lock(); CTable.Recycle(iP); myMutex.UnLock();
          numRecycled++;
         }

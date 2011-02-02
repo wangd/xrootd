@@ -91,6 +91,16 @@ int         DiskOK;       // This configuration has data
 int         sched_RR;     // 1 -> Simply do round robin scheduling
 int         doWait;       // 1 -> Wait for a data end-point
 
+int         maxQRRSlots;  // Maximum number of QRR path slots
+int         maxQRRSLWP;   // Maximum number of QRR path slot threads
+int         maxQRRDatas;  // Maximum number of QRR data slots
+int         maxQRRDLWP;   // Maximum number of QRR data slot threads
+int         selQRRWait;   // Time to wait before reselecting
+int         tmoQRRWait;   // Time to wait between timouts
+int         tmoQRRTries;  // Number of timeouts before disbanding query
+int         cbWait;       // QRR callback wait time for client
+int         iniQRR;       // QRR must be initialized, have special paths
+
 XrdOucName2Name *xeq_N2N; // Server or Manager (non-null if library loaded)
 XrdOucName2Name *lcl_N2N; // Server Only
 
@@ -167,6 +177,7 @@ int  xrole(XrdSysError *edest, XrdOucStream &CFile);
 int  xsched(XrdSysError *edest, XrdOucStream &CFile);
 int  xsecl(XrdSysError *edest, XrdOucStream &CFile);
 int  xspace(XrdSysError *edest, XrdOucStream &CFile);
+int  xspec(XrdSysError *edest, XrdOucStream &CFile);
 int  xtrace(XrdSysError *edest, XrdOucStream &CFile);
 int  xxmi(XrdSysError *edest, XrdOucStream &CFile);
 

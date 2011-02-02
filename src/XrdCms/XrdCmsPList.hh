@@ -54,13 +54,18 @@ class XrdCmsPList
 public:
 friend class XrdCmsPList_Anchor;
 
+inline char           Flags() {return pathflags;}
+static const char     Special = 0x01;
+static const char     ROnly   = 0x02;
+static const char     Valid   = 0x80;
+
 inline XrdCmsPList   *Next() {return next;}
 inline char          *Path() {return pathname;}
 const  char          *PType();
 
-       XrdCmsPList(const char *pname="", XrdCmsPInfo *pi=0)
+       XrdCmsPList(const char *pname="", XrdCmsPInfo *pi=0, char pf=0)
                   : next(0), pathname(strdup(pname)), pathlen(strlen(pname)),
-                    pathtype(0) {if (pi) pathmask.Set(pi);}
+                    pathflags(pf|Valid) {if (pi) pathmask.Set(pi);}
 
       ~XrdCmsPList() {if (pathname) free(pathname);}
 
@@ -70,9 +75,11 @@ XrdCmsPInfo     pathmask;
 XrdCmsPList    *next;
 char           *pathname;
 int             pathlen;
-char            pathtype;
+char            pathflags;
 char            reserved[3];
 };
+
+class XrdOucTList;
 
 class XrdCmsPList_Anchor
 {
@@ -101,6 +108,8 @@ inline int          NotEmpty() {return next != 0;}
 
        void         Remove(SMask_t mask);
 
+       void         Special(const char *Path, int Opts);
+
 const  char        *Type(const char *pname);
 
 inline XrdCmsPList *Zorch(XrdCmsPList *newlist=0)
@@ -111,7 +120,7 @@ inline XrdCmsPList *Zorch(XrdCmsPList *newlist=0)
                     return p;
                    }
 
-       XrdCmsPList_Anchor() {next = 0;}
+       XrdCmsPList_Anchor() : next(0), specPaths(0) {}
 
       ~XrdCmsPList_Anchor() {Empty();}
 
@@ -119,5 +128,6 @@ private:
 
 XrdSysMutex   mutex;
 XrdCmsPList  *next;
+XrdOucTList  *specPaths;
 };
 #endif

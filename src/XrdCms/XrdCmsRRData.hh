@@ -46,9 +46,12 @@ XrdCms::CmsRRHdr       Request;     // all
         char          *Ident;       // all
         unsigned int   Opts;        // locate, select
                  int   PathLen;     // locate, prepadd, select (inc null byte)
-        unsigned int   dskFree;     // avail, load
+union  {unsigned int   dskFree;     // avail, load
+                 int   rSeq;        // select (optional)
+       };
 union  {unsigned int   dskUtil;     // avail
                  int   waitVal;
+                 int   rGroup;      // select (optional)
        };
         char          *Buff;        // Buffer underlying the pointers
         int            Blen;        // Length of buffer
@@ -61,7 +64,7 @@ enum ArgName
      Arg_Opaque2,  Arg_Opaque,    Arg_Opts,      Arg_Path,
      Arg_Path2,    Arg_Port,      Arg_Prty,      Arg_Reqid,
      Arg_dskFree,  Arg_dskUtil,   Arg_theLoad,   Arg_SID,
-     Arg_dskTot,   Arg_dskMinf,
+     Arg_dskTot,   Arg_dskMinf,   Arg_rSeq,
 
      Arg_Count     // Always the last item which equals the number of elements
 };

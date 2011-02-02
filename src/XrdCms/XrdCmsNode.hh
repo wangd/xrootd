@@ -136,7 +136,7 @@ static const int fsL2PFail2 = 999992;
 const  char *fsFail(const char *Who, const char *What, const char *Path, int rc);
        int   getMode(const char *theMode, mode_t &Mode);
        int   getSize(const char *theSize, long long &Size);
-static int   isOnline(char *path, int upt=1);
+static int   isOnline(char *path, int upt);
 
 XrdSysMutex        myMutex;
 XrdLink           *Link;

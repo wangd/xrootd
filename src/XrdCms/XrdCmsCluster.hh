@@ -99,6 +99,11 @@ SMask_t         Broadcast(SMask_t smask, XrdCms::CmsRRHdr &Hdr,
 SMask_t         Broadcast(SMask_t smask, XrdCms::CmsRRHdr &Hdr,
                           void *Data,    int Dlen);
 
+// Called to obtain the destination address
+//
+int             Dest(int Num, int Ins, int &port, char *hbuff, int hlen);
+int             Dest(SMask_t mask,     int &port, char *hbuff, int hlen);
+
 // Returns the node mask matching the given IP address
 //
 SMask_t         getMask(unsigned int IPv4adr);
@@ -141,6 +146,10 @@ int             Select(XrdCmsSelect &Sel);
 int             Select(int isrw, SMask_t pmask, int &port, 
                        char *hbuff, int &hlen);
 
+// Sends a message to the node Num.Ins. Return 1 if sent 0 otherwise.
+//
+int             Send(int Num, int Ins, const struct iovec *, int, int tot=0);
+
 // Called to get cluster space (for managers and supervisors only)
 //
 void            Space(XrdCms::SpaceData &sData, SMask_t smask);
@@ -162,6 +171,7 @@ int         Multiple(SMask_t mVec);
 enum        {eExists, eDups, eROfs, eNoRep}; // Passed to SelFail
 int         SelFail(XrdCmsSelect &Sel, int rc);
 int         SelNode(XrdCmsSelect &Sel, SMask_t pmask, SMask_t amask);
+int         SelNode(XrdCmsSelect &Sel, SMask_t pmask);
 XrdCmsNode *SelbyCost(SMask_t, int &, int &, const char **, int);
 XrdCmsNode *SelbyLoad(SMask_t, int &, int &, const char **, int);
 XrdCmsNode *SelbyRef (SMask_t, int &, int &, const char **, int);

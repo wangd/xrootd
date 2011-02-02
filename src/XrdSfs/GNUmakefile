@@ -1,4 +1,4 @@
-#              $Id$
+#              $Id: GNUmakefile,v 1.12 2010/07/30 03:19:14 abh Exp $
 
 #------------------------------------------------------------------------------#
 #                       C o m m o n   V a r i a b l e s                        #
@@ -11,10 +11,12 @@ include ../GNUmake.env
 #------------------------------------------------------------------------------#
   
 SOURCES = \
+        XrdSfsCallBack.cc \
         XrdSfsNative.cc
 
   
 OBJECTS = \
+        $(OBJDIR)/XrdSfsCallBack.o \
         $(OBJDIR)/XrdSfsNative.o
 
 LIBRARY =
@@ -28,6 +30,7 @@ TARGETS = OBJECTFILE
 vpath XrdOuc% ../XrdOuc
 vpath XrdSec% ../XrdSec
 vpath XrdSys% ../XrdSys
+vpath XrdXrootd% ../XrdXrootd
 
 #------------------------------------------------------------------------------#
 #                          I n i t i a l   R u l e s                           #
@@ -43,6 +46,14 @@ anything: $(TARGETS)
 #------------------------------------------------------------------------------#
 
 $(TARGETS): $(OBJECTS)
+
+$(OBJDIR)/XrdSfsCallBack.o: XrdSfsCallBack.hh  XrdSfsCallBack.cc \
+                            XrdSfsInterface.hh \
+                            XrdOucErrInfo.hh \
+                            XrdSysPthread.hh \
+                            XrdXrootdProtocol.hh
+	@echo Compiling XrdSfsCallBack.cc 
+	$(ECHO)$(CC) -c $(CFLAGS) $(INCLUDE) -o $(OBJDIR)/XrdSfsCallBack.o XrdSfsCallBack.cc
 
 $(OBJDIR)/XrdSfsNative.o:  XrdSfsInterface.hh XrdSfsNative.hh  XrdSecInterface.hh \
                            XrdSysError.hh     XrdOucErrInfo.hh XrdSysLogger.hh \

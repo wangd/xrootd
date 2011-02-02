@@ -21,6 +21,7 @@ const char *XrdCmsFinderCVSID = "$Id$";
 #include <strings.h>
 #include <time.h>
 #include <unistd.h>
+#include <sys/param.h>
 #include <sys/shm.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
@@ -71,6 +72,9 @@ namespace XrdCms
 XrdSysError  Say(0, "cms_");
   
 XrdOucTrace  Trace(&Say);
+
+XrdCmsClient *Rdr2Cms = 0;
+XrdCmsClient *Srv2Cms = 0;
 };
 
 /******************************************************************************/
@@ -93,6 +97,7 @@ XrdCmsFinderRMT::XrdCmsFinderRMT(XrdSysLogger *lp, int whoami, int Port)
      isMeta      = whoami & IsMeta;
      isTarget    = whoami & IsTarget;
      Say.logger(lp);
+     Rdr2Cms     = (XrdCmsClient *)this;
 }
  
 /******************************************************************************/
@@ -213,7 +218,7 @@ int XrdCmsFinderRMT::Forward(XrdOucErrInfo &Resp, const char *cmd,
 
 // This may be a 2way message. If so, use the longer path.
 //
-   if (is2way) return send2Man(Resp, (arg1 ? arg1 : "/"), xmsg, iovcnt+1);
+   if (is2way) return send2Man(Resp, (arg1 ? arg1 : "/"), 0, xmsg, iovcnt+1);
 
 // Select the right manager for this request
 //
@@ -265,11 +270,11 @@ void XrdCmsFinderRMT::Inform(XrdCmsClientMan *xman,
 int XrdCmsFinderRMT::Locate(XrdOucErrInfo &Resp, const char *path, int flags,
                             XrdOucEnv *Env)
 {
-   static const int xNum   = 12;
+   static const int xNum   = 14;
 
    XrdCmsRRData   Data;
    int            n, iovcnt;
-   char           Work[xNum*12];
+   char           Work[xNum*12], *idNum = 0;
    struct iovec   xmsg[xNum];
 
 // Fill out the RR data structure
@@ -278,6 +283,15 @@ int XrdCmsFinderRMT::Locate(XrdOucErrInfo &Resp, const char *path, int flags,
    Data.Path    = (char *)path;
    Data.Opaque  = (Env ? Env->Env(n)       : 0);
    Data.Avoid   = (Env ? Env->Get("tried") : 0);
+
+// Now get the optional request group that can be used to correlate requests
+//
+   if (!Env) Data.rGroup = Data.rSeq = 0;
+      else {if (!(idNum = Env->Get("cms.rseq"))) Data.rSeq   = 0;
+               else Data.rSeq   = atoi(idNum);
+            if (!(idNum = Env->Get("cms.rgrp"))) Data.rGroup = 0;
+               else Data.rGroup = atoi(idNum);
+           }
 
 // Set options and command
 //
@@ -288,11 +302,7 @@ int XrdCmsFinderRMT::Locate(XrdOucErrInfo &Resp, const char *path, int flags,
       } else
   {     Data.Request.rrCode = kYR_select;
         if (flags & SFS_O_TRUNC) Data.Opts = CmsSelectRequest::kYR_trunc;
-   else if (flags & SFS_O_CREAT)
-           {   Data.Opts = CmsSelectRequest::kYR_create;
-            if (flags & SFS_O_REPLICA)
-               Data.Opts|= CmsSelectRequest::kYR_replica;
-           }
+   else if (flags & SFS_O_CREAT) Data.Opts = CmsSelectRequest::kYR_create;
    else if (flags & SFS_O_STAT)  Data.Opts = CmsSelectRequest::kYR_stat;
    else                          Data.Opts = 0;
 
@@ -304,6 +314,8 @@ int XrdCmsFinderRMT::Locate(XrdOucErrInfo &Resp, const char *path, int flags,
    if (flags & SFS_O_NOWAIT)    Data.Opts  |= CmsSelectRequest::kYR_online;
 
    if (flags & SFS_O_RESET)     Data.Opts  |= CmsSelectRequest::kYR_refresh;
+
+   if (Env->Get("cms.prty"))    Data.Opts  |= CmsSelectRequest::kYR_prty;
   }
 
 // Pack the arguments
@@ -321,9 +333,10 @@ int XrdCmsFinderRMT::Locate(XrdOucErrInfo &Resp, const char *path, int flags,
    xmsg[0].iov_base      = (char *)&Data.Request;
    xmsg[0].iov_len       = sizeof(Data.Request);
 
-// Send the 2way message
+// Send the 2way message. If an rGroup was specified, we will use that as
+// the hash into the selection table.
 //
-   return send2Man(Resp, path, xmsg, iovcnt+1);
+   return send2Man(Resp, path, Data.rGroup, xmsg, iovcnt+1);
 }
   
 /******************************************************************************/
@@ -482,6 +495,35 @@ XrdCmsClientMan *XrdCmsFinderRMT::SelectManager(XrdOucErrInfo &Resp,
    SelectManFail(Resp);
    return (XrdCmsClientMan *)0;
 }
+/******************************************************************************/
+  
+XrdCmsClientMan *XrdCmsFinderRMT::SelectManager(XrdOucErrInfo &Resp, int rGrp)
+{
+   XrdCmsClientMan *Womp, *Manp;
+
+// Make sure we are configured
+//
+   if (!myManagers)
+      {Say.Emsg("Finder", "SelectManager() called prior to Configure().");
+       Resp.setErrInfo(ConWait, "");
+       return (XrdCmsClientMan *)0;
+      }
+
+// Get where to start
+//
+   if (SMode != XrdCmsClientConfig::RoundRob || !rGrp) Womp = Manp = myManagers;
+      else Womp = Manp = myManTable[rGrp%myManCount];
+
+// Find the next active server
+//
+   do {if (Manp->isActive()) return (Manp->Suspended() ? 0 : Manp);
+      } while((Manp = Manp->nextManager()) != Womp);
+
+// All managers are dead
+//
+   SelectManFail(Resp);
+   return (XrdCmsClientMan *)0;
+}
   
 /******************************************************************************/
 /*                         S e l e c t M a n F a i l                          */
@@ -510,7 +552,7 @@ void XrdCmsFinderRMT::SelectManFail(XrdOucErrInfo &Resp)
 /*                              s e n d 2 M a n                               */
 /******************************************************************************/
   
-int XrdCmsFinderRMT::send2Man(XrdOucErrInfo &Resp, const char *path,
+int XrdCmsFinderRMT::send2Man(XrdOucErrInfo &Resp, const char *path, int rGrp,
                               struct iovec  *xmsg, int         xnum)
 {
    EPNAME("send2Man")
@@ -520,8 +562,13 @@ int XrdCmsFinderRMT::send2Man(XrdOucErrInfo &Resp, const char *path,
 
 // Select the right manager for this request
 //
-   if (!(Manp = SelectManager(Resp, path)) || Manp->Suspended()) 
-      return ConWait;
+   if (rGrp)
+      {if (!(Manp = SelectManager(Resp, rGrp)) || Manp->Suspended())
+          return ConWait;
+      } else {
+       if (!(Manp = SelectManager(Resp, path)) || Manp->Suspended())
+          return ConWait;
+      }
 
 // Allocate a message object. There is only a fixed number of these and if
 // all of them are in use, th client has to wait to prevent over-runs.
@@ -664,7 +711,7 @@ int XrdCmsFinderRMT::Space(XrdOucErrInfo &Resp, const char *path)
 
 // Send the 2way message
 //
-   return send2Man(Resp, path, xmsg, iovcnt+1);
+   return send2Man(Resp, path, 0, xmsg, iovcnt+1);
 }
   
 /******************************************************************************/
@@ -686,10 +733,16 @@ XrdCmsFinderTRG::XrdCmsFinderTRG(XrdSysLogger *lp, int whoami, int port,
    CMSp    = new XrdOucStream(&Say);
    Active  = 0;
    myPort  = port;
+   resMax  = -1;
+   resCur  = 0;
    sprintf(buff, "login %c %d port %d\n",(isProxy ? 'P' : 'p'),
                  static_cast<int>(getpid()), port);
    Login = strdup(buff);
    Say.logger(lp);
+
+// The following bit of code exports this finder for public use
+//
+   Srv2Cms = (XrdCmsClient *)this;
 }
  
 /******************************************************************************/
@@ -756,6 +809,36 @@ int XrdCmsFinderTRG::Configure(char *cfn)
 }
   
 /******************************************************************************/
+/*                               R e l e a s e                                */
+/******************************************************************************/
+  
+int XrdCmsFinderTRG::Release(int rNum)
+{
+   int resOld;
+
+// Lock the variables of interest
+//
+   rrMutex.Lock();
+   resOld = resCur;
+
+// If reserve/release not enabled or we have a non-positive value, return
+//
+   if (resMax < 0 || rNum <= 0) {rrMutex.UnLock(); return resOld;}
+
+// Adjust resource and check if we can resume
+//
+   resCur += rNum;
+   if (resCur > resMax) resCur = resMax;
+   if (resOld < 1 && resCur > 0) Resume(0);
+
+// All done
+//
+   resOld = resCur;
+   rrMutex.UnLock();
+   return resOld;
+}
+
+/******************************************************************************/
 /*                               R e m o v e d                                */
 /******************************************************************************/
   
@@ -775,6 +858,102 @@ void XrdCmsFinderTRG::Removed(const char *path)
 //
    myData.Lock();
    if (Active && CMSp->Put((const char **)data, (const int *)dlen))
+      {CMSp->Close(); Active = 0;}
+   myData.UnLock();
+}
+  
+/******************************************************************************/
+/*                               R e s e r v e                                */
+/******************************************************************************/
+  
+int XrdCmsFinderTRG::Reserve(int rNum)
+{
+   int resOld;
+
+// Lock the variables of interest
+//
+   rrMutex.Lock();
+   resOld = resCur;
+
+// If reserve/release not enabled or we have a non-positive value, return
+//
+   if (resMax < 0 || rNum <= 0) {rrMutex.UnLock(); return resOld;}
+
+// Adjust resource and check if we can suspend
+//
+   resCur -= rNum;
+   if (resOld > 0 && resCur < 1) Suspend(0);
+
+// All done
+//
+   resOld = resCur;
+   rrMutex.UnLock();
+   return resOld;
+}
+  
+/******************************************************************************/
+/*                              R e s o u r c e                               */
+/******************************************************************************/
+  
+int XrdCmsFinderTRG::Resource(int rNum)
+{
+   int resOld;
+
+// Lock the variables of interest
+//
+   rrMutex.Lock();
+   resOld = (resMax < 0 ? 0 : resMax);
+
+// If we have a non-positive value, return
+//
+   if (rNum <= 0) {rrMutex.UnLock(); return resOld;}
+
+// Set the resource and adjust the current value as needed
+//
+   resMax = rNum;
+   if (resCur > resMax) resCur = resMax;
+
+// All done
+//
+   rrMutex.UnLock();
+   return resOld;
+}
+  
+/******************************************************************************/
+/*                                R e s u m e                                 */
+/******************************************************************************/
+  
+void XrdCmsFinderTRG::Resume(int Perm)
+{                               // 1234567890
+   static const char *rPerm[2] = {"resume\n", 0};
+   static const char *rTemp[2] = {"resume t\n", 0};
+   static       int   lPerm[2] = { 7, 0};
+   static       int   lTemp[2] = { 9, 0};
+
+// Now send the notification
+//
+   myData.Lock();
+   if (Active && CMSp->Put((const char **)(Perm ? rPerm : rTemp),
+                           (const int *)  (Perm ? lPerm : lTemp)))
+      {CMSp->Close(); Active = 0;}
+   myData.UnLock();
+}
+
+/******************************************************************************/
+/*                               S u s p e n d                                */
+/******************************************************************************/
+  
+void XrdCmsFinderTRG::Suspend(int Perm)
+{                               // 1234567890
+   static const char *sPerm[2] = {"suspend\n", 0};
+   static const char *sTemp[2] = {"suspend t\n", 0};
+   static       int   lPerm[2] = { 8, 0};
+   static       int   lTemp[2] = {10, 0};
+
+// Now send the notification
+//
+   if (Active && CMSp->Put((const char **)(Perm ? sPerm : sTemp),
+                           (const int *)  (Perm ? lPerm : lTemp)))
       {CMSp->Close(); Active = 0;}
    myData.UnLock();
 }

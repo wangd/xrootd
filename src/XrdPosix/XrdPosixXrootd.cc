@@ -32,6 +32,14 @@ const char *XrdPosixXrootdCVSID = "$Id$";
 #include "XrdPosix/XrdPosixLinkage.hh"
 #include "XrdPosix/XrdPosixXrootd.hh"
 
+namespace XrdPosix
+{XrdSysMutex dbgMutex;
+};
+
+#define DBG(x) XrdPosix::dbgMutex.Lock();\
+               cerr <<time(0) <<" Posix: " <<x <<endl;\
+               XrdPosix::dbgMutex.UnLock();
+
 /******************************************************************************/
 /*                         L o c a l   C l a s s e s                          */
 /******************************************************************************/
@@ -481,6 +489,7 @@ int     XrdPosixXrootd::Close(int fildes, int Stream)
    if (!(fp = findFP(fildes, 1))) return -1;
    myFiles[fp->FD] = 0;
    if (Stream) fp->FD = -1;
+DBG("Close fd=" <<fildes <<" fn=" <<fp->XClient->GetCurrentUrl().File.c_str());
 
 // Deallocate the file. We have the global lock.
 //
@@ -759,6 +768,7 @@ do{if ((fd = dup(devNull)) < 0) return -1;
        delete fp;
        myMutex.UnLock();
        errno = retc;
+DBG("Open error rc=" <<retc <<" fn=" <<path);
        return -1;
       }
 
@@ -766,6 +776,7 @@ do{if ((fd = dup(devNull)) < 0) return -1;
 //
    if (cbP)
       {errno = EINPROGRESS;
+DBG("Open inprog fn=" <<path);
        return -1;
       }
 
@@ -776,6 +787,7 @@ do{if ((fd = dup(devNull)) < 0) return -1;
 
 // Return the fd number
 //
+DBG("Open fd=" <<fd <<" fn=" <<path);
    return fd;
 }
 
@@ -806,6 +818,7 @@ void XrdPosixXrootd::OpenCB(XrdPosixFile *fp, void *cbArg, int res)
        if (!(First = cbFP->Next)) Last = 0;
        cbMutex.UnLock();
        if ((rc = (cbFP->cbResult < 0))) errno = -(cbFP->cbResult);
+DBG("OpenCB call fd=" <<cbFP->cbResult <<" fn=" <<cbFP->XClient->GetCurrentUrl().File.c_str());
        cbFP->theCB->Complete(cbFP->cbResult);
        if (rc) delete cbFP;
       } while(1);
@@ -823,6 +836,9 @@ void XrdPosixXrootd::OpenCB(XrdPosixFile *fp, void *cbArg, int res)
        fp->cbResult = fp->FD;
       }
 
+DBG("OpenCB stats WT=" <<Waiting <<" nT=" <<numThreads <<" mT=" <<maxThreads);
+DBG("OpenCB queue fd=" <<fp->cbResult <<" fn=" <<fp->XClient->GetCurrentUrl().File.c_str());
+
 // Lock our data structure and queue this element
 //
    cbMutex.Lock();
@@ -834,6 +850,7 @@ void XrdPosixXrootd::OpenCB(XrdPosixFile *fp, void *cbArg, int res)
 //
    if (!Waiting && numThreads < maxThreads)
       {pthread_t tid;
+DBG("OpenCB newth fd=" <<fp->cbResult <<" fn=" <<fp->XClient->GetCurrentUrl().File.c_str());
        if ((rc = XrdSysThread::Run(&tid, XrdPosixXrootdCB, (void *)0,
                                   0, "Callback thread")))
           cerr <<"XrdPosix: Unable to create callback thread; "
