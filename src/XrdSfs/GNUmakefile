@@ -30,7 +30,7 @@ TARGETS = OBJECTFILE
 vpath XrdOuc% ../XrdOuc
 vpath XrdSec% ../XrdSec
 vpath XrdSys% ../XrdSys
-vpath XrdXrootd% ../XrdXrootd
+vpath XProtocol% ../XProtocol
 
 #------------------------------------------------------------------------------#
 #                          I n i t i a l   R u l e s                           #
@@ -51,7 +51,7 @@ $(OBJDIR)/XrdSfsCallBack.o: XrdSfsCallBack.hh  XrdSfsCallBack.cc \
                             XrdSfsInterface.hh \
                             XrdOucErrInfo.hh \
                             XrdSysPthread.hh \
-                            XrdXrootdProtocol.hh
+                            XProtocol.hh
 	@echo Compiling XrdSfsCallBack.cc 
 	$(ECHO)$(CC) -c $(CFLAGS) $(INCLUDE) -o $(OBJDIR)/XrdSfsCallBack.o XrdSfsCallBack.cc
 

@@ -17,4 +17,5 @@ xrootdsfsinc_HEADERS = XrdSfsAio.hh  XrdSfsInterface.hh  XrdSfsNative.hh
 INCLUDES = -I$(top_srcdir)/src -I$(top_builddir)/src
 
 libXrdSfs_la_SOURCES = \
-         XrdSfsNative.cc XrdSfsNative.hh XrdSfsAio.hh XrdSfsInterface.hh
+         XrdSfsCallBack.cc XrdSfsNative.cc \
+         XrdSfsCallBack.hh XrdSfsNative.hh XrdSfsAio.hh XrdSfsInterface.hh
