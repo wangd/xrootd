@@ -812,7 +812,8 @@ int XrdCmsCluster::Select(XrdCmsSelect &Sel)
            else if (Sel.Vec.hf)
                    {if (Sel.Opts & XrdCmsSelect::NewFile) return SelFail(Sel,eExists);
                     if (!(Sel.Opts & XrdCmsSelect::isMeta)
-                    &&  Multiple(Sel.Vec.hf))             return SelFail(Sel,eDups);
+                        &&  Multiple(Sel.Vec.hf))         {}  
+                    // Qserv: allow inconsistent writes (dispatches) // return SelFail(Sel,eDups);
                     if (!(pmask = Sel.Vec.hf & amask))    return SelFail(Sel,eROfs);
                     smask = 0;
                    }
