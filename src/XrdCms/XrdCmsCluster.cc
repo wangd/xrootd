@@ -955,7 +955,9 @@ int XrdCmsCluster::Select(XrdCmsSelect &Sel)
            else if (Sel.Vec.hf)
                    {if (Sel.Opts & XrdCmsSelect::NewFile) return SelFail(Sel,eExists);
                     if (!(Sel.Opts & XrdCmsSelect::isMeta) && Config.DoMWChk
-                    &&  Multiple(Sel.Vec.hf))             return SelFail(Sel,eDups);
+                        &&  Multiple(Sel.Vec.hf))         {}  
+                    // Qserv: allow inconsistent writes (dispatches) // return SelFail(Sel,eDups); 
+                    // Wait until Config.DoMWChk/"mwfiles" is documented.
                     if (!(pmask = Sel.Vec.hf & amask))    return SelFail(Sel,eROfs);
                     smask = 0;
                    }
