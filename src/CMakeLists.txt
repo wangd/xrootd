@@ -34,6 +34,19 @@ include( XrdCns )
 include( XrdHeaders )
 
 include( XrdFileCache )
+### qserv
+include( XrdSys )
+include( XrdOuc )
+include( XrdSfs )
+
+#-------------------------------------------------------------------------------
+# Install the version and the protocol headers
+#-------------------------------------------------------------------------------
+install(
+  DIRECTORY      XProtocol/
+  DESTINATION    ${CMAKE_INSTALL_INCLUDEDIR}/xrootd/XProtocol
+  FILES_MATCHING
+  PATTERN "*.hh" )
 
 if( BUILD_HTTP )
   include( XrdHttp )
