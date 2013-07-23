@@ -78,6 +78,7 @@ static int   Allowed(XrdOucErrInfo *eInfo) {return eInfo->getErrCB() != 0;}
 // The following is a handy pointer to allow for linking these objects together
 //
 XrdOucCallBack *Next;
+    virtual void Done(int&, XrdOucErrInfo*, const char *) {}
 
 private:
 void  Done(int &Result, XrdOucErrInfo *eInfo) {cbSync.Post();}

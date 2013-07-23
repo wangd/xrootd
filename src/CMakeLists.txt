@@ -28,6 +28,11 @@ include( XrdPlugins )
 include( XrdApps )
 include( XrdCns )
 
+### qserv
+include( XrdSys )
+include( XrdOuc )
+include( XrdSfs )
+
 #-------------------------------------------------------------------------------
 # Install the version and the protocol headers
 #-------------------------------------------------------------------------------
