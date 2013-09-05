@@ -1154,8 +1154,7 @@ bool XrdClient::LowOpen(const char *file, kXR_unt16 mode, kXR_unt16 options,
     // Send a kXR_open request in order to open the remote file
     ClientRequest openFileRequest;
 
-    char buf[1024];
-    struct ServerResponseBody_Open *openresp = (struct ServerResponseBody_Open *)buf;
+    struct ServerResponseBody_Open *openresp = 0;
 
     memset(&openFileRequest, 0, sizeof(openFileRequest));
 
@@ -1174,8 +1173,8 @@ bool XrdClient::LowOpen(const char *file, kXR_unt16 mode, kXR_unt16 options,
 
     // Send request to server and receive response
     bool resp = fConnModule->SendGenCommand(&openFileRequest,
-					    (const void *)finalfilename.c_str(),
-					    0, openresp, false, (char *)"Open");
+					(const void *)finalfilename.c_str(),
+					(void **)&openresp, 0, true, (char *)"Open");
 
     if (resp && (fConnModule->LastServerResp.status == 0)) {
        // Get the file handle to use for future read/write...
@@ -1206,7 +1205,8 @@ bool XrdClient::LowOpen(const char *file, kXR_unt16 mode, kXR_unt16 options,
        }
        
     }
-
+    // Free memory allocated by SendGenCommand
+    free(openresp);
 
     return fOpenPars.opened;
 }
