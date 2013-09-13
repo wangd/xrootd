@@ -59,7 +59,7 @@
 #include <signal.h>
 
 
-XrdSysSemWait     XrdClient::fConcOpenSem(DFLT_MAXCONCURRENTOPENS);
+XrdSysSemaphore   XrdClient::fConcOpenSem(DFLT_MAXCONCURRENTOPENS);
 
 //_____________________________________________________________________________
 // Calls the Open func in order to parallelize the Open requests

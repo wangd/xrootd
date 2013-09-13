@@ -35,7 +35,6 @@
 
 #include "XrdSys/XrdSysPthread.hh"
 #include "XrdClient/XrdClientVector.hh"
-#include "XrdSys/XrdSysSemWait.hh"
 #include "XrdSys/XrdSysHeaders.hh"
 
 using namespace std;
@@ -53,16 +52,16 @@ struct XrdCpMessage {
 class XrdCpMthrQueue {
  private:
    long                           fTotSize;
-   XrdClientVector<XrdCpMessage*>            fMsgQue;      // queue for incoming messages
-   int                                       fMsgIter;     // an iterator on it
-   int                                       fWrWait;      // Write waiters
+   XrdClientVector<XrdCpMessage*> fMsgQue;      // queue for incoming messages
+   int                            fMsgIter;     // an iterator on it
+   int                            fWrWait;      // Write waiters
 
-   XrdSysRecMutex                        fMutex;       // mutex to protect data structures
+   XrdSysRecMutex                 fMutex;       // mutex to protect data structures
 
-   XrdSysSemWait                      fReadSem;     // variable to make the reader wait
-                                                    // until some data is available
-   XrdSysSemaphore                    fWriteSem;    // variable to make the writer wait
-                                                    // if the queue is full
+   XrdSysSemaphore                fReadSem;     // variable to make the reader wait
+                                                // until some data is available
+   XrdSysSemaphore                fWriteSem;    // variable to make the writer wait
+                                                // if the queue is full
  public:
 
    XrdCpMthrQueue();
