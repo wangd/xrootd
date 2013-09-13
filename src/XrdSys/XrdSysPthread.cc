@@ -221,10 +221,6 @@ void XrdSysSemaphore::Wait(int sec)
    struct timespec tval;
    int retc;
 
-// Adding a cleanup handler to the stack here enables threads using this OSX
-// semaphore to be canceled (which is rare). A scoped lock won't work here
-// because OSX is broken and doesn't call destructors properly.
-//
    semVar.Lock();
 
    retc = semVal < 1;
@@ -266,7 +262,7 @@ int XrdSysSemaphore::Wait(int sec)
    tval.tv_sec  = time(0) + sec;
    tval.tv_nsec = 0;
 
-// Wait until the semaphore value is positive or timeout
+// Wait for the semaphore or timeout
 //
    while(sem_timedwait(&h_semaphore, &tval))
         {if (errno == ETIMEDOUT) return 1;
