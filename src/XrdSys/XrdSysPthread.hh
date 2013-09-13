@@ -24,6 +24,9 @@
 
 #include "XrdSys/XrdSysError.hh"
 
+
+class XrdSysSemaphore;
+
 /******************************************************************************/
 /*                         X r d S y s C o n d V a r                          */
 /******************************************************************************/
@@ -68,6 +71,12 @@ pthread_cond_t  cvar;
 pthread_mutex_t cmut;
 int             relMutex;
 const char     *condID;
+
+#ifdef __macos__
+// Allow pthread_cond_timedwait to be called directly so that the Wait(int)
+// duration need not be recomputed on every wakeup.
+friend class XrdSysSemaphore;
+#endif
 };
 
 
@@ -285,6 +294,7 @@ public:
        void Post();
 
        void Wait();
+       int  Wait(int sec);
 
   XrdSysSemaphore(int semval=1,const char *cid=0) : semVar(0, cid)
                                   {semVal = semval; semWait = 0;}
@@ -320,6 +330,8 @@ inline void Wait() {while (sem_wait(&h_semaphore))
                               {throw "sem_wait() failed";}
                           }
                    }
+
+  int  Wait(int sec);
 
   XrdSysSemaphore(int semval=1, const char * =0)
                                {if (sem_init(&h_semaphore, 0, semval))

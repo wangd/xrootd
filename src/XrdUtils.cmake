@@ -25,7 +25,6 @@ add_library(
   XrdSys/XrdSysPriv.cc          XrdSys/XrdSysPriv.hh
   XrdSys/XrdSysPlatform.cc      XrdSys/XrdSysPlatform.hh
   XrdSys/XrdSysPthread.cc       XrdSys/XrdSysPthread.hh
-                                XrdSys/XrdSysSemWait.hh
   XrdSys/XrdSysTimer.cc         XrdSys/XrdSysTimer.hh
   XrdSys/XrdSysXSLock.cc        XrdSys/XrdSysXSLock.hh
   XrdSys/XrdSysFAttr.cc         XrdSys/XrdSysFAttr.hh
