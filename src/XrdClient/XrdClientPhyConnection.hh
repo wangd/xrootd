@@ -22,7 +22,6 @@
 #include "XrdClient/XrdClientUrlInfo.hh"
 #include "XrdClient/XrdClientThread.hh"
 #include "XrdSys/XrdSysPthread.hh"
-#include "XrdSys/XrdSysSemWait.hh"
 
 #include <time.h> // for time_t data type
 
@@ -74,7 +73,7 @@ private:
 
     UnsolRespProcResult HandleUnsolicited(XrdClientMessage *m);
 
-    XrdSysSemWait       fReaderCV;
+    XrdSysSemaphore     fReaderCV;
 
     short               fLogConnCnt; // Number of logical connections using this phyconn
 

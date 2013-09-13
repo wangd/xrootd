@@ -107,8 +107,8 @@ int XrdSysCondVar::Wait(int sec)
 
 // Wait for the condition or timeout
 //
-   do {retc = pthread_cond_timedwait(&cvar, &cmut, &tval);}
-   while (retc && (retc != ETIMEDOUT));
+   retc = pthread_cond_timedwait(&cvar, &cmut, &tval);
+   if (retc && retc != ETIMEDOUT) {throw "pthread_cond_timedwait() failed";}
 
    if (relMutex) UnLock();
    return retc == ETIMEDOUT;
@@ -151,8 +151,8 @@ int XrdSysCondVar::WaitMS(int msec)
 
 // Now wait for the condition or timeout
 //
-   do {retc = pthread_cond_timedwait(&cvar, &cmut, &tval);}
-   while (retc && (retc != ETIMEDOUT));
+   retc = pthread_cond_timedwait(&cvar, &cmut, &tval);
+   if (retc && retc != ETIMEDOUT) {throw "pthread_cond_timedwait() failed";}
 
    if (relMutex) UnLock();
    return retc == ETIMEDOUT;
@@ -205,17 +205,70 @@ void XrdSysSemaphore::Wait()
 // free is the OS implements an unfair mutex;
 //
    semVar.Lock();
-   if (semVal < 1 || semWait)
-      while(semVal < 1)
-           {semWait++;
-            semVar.Wait();
-            semWait--;
-           }
+
+   semWait++;
+   while(semVal < 1) semVar.Wait();
+   semWait--;
 
 // Decrement the semaphore value and return
 //
    semVal--;
    semVar.UnLock();
+}
+
+void XrdSysSemaphore::Wait(int sec)
+{
+   struct timespec tval;
+   int retc;
+
+   semVar.Lock();
+
+   retc = semVal < 1;
+   if (retc)
+      {
+         // Adjust the time in seconds
+         tval.tv_sec  = time(0) + sec;
+         tval.tv_nsec = 0;
+
+         semWait++; 
+         // Wait until the semaphore value is positive or the deadline expires. 
+         do {retc = pthread_cond_timedwait(&semVar.cvar, &semVar.cmut, &tval);
+             if (retc && retc != ETIMEDOUT) {throw "pthread_cond_timedwait() failed";}
+            }
+         while(semVal < 1 && retc == 0);
+         semWait--;
+         retc = semVal < 1;
+      }
+// Decrement the semaphore value if it became positive,
+// unlock the underlying cond var and return
+//
+   if (!retc) semVal--;
+   semVar.UnLock();
+   return retc;
+}
+
+#else
+
+/******************************************************************************/
+/*                                  W a i t                                   */
+/******************************************************************************/
+
+int XrdSysSemaphore::Wait(int sec)
+{
+   struct timespec tval;
+
+// Simply adjust the time in seconds
+//
+   tval.tv_sec  = time(0) + sec;
+   tval.tv_nsec = 0;
+
+// Wait for the semaphore or timeout
+//
+   while(sem_timedwait(&h_semaphore, &tval))
+        {if (errno == ETIMEDOUT) return 1;
+         if (errno != EINTR) {throw "sem_timedwait() failed";}
+        }
+   return 0;
 }
 #endif
  

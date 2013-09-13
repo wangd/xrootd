@@ -73,11 +73,11 @@ int XrdClientInputBuffer::WipeStreamid(int streamid)
 }
 
 //________________________________________________________________________
-XrdSysSemWait *XrdClientInputBuffer::GetSyncObjOrMakeOne(int streamid) {
+XrdSysSemaphore *XrdClientInputBuffer::GetSyncObjOrMakeOne(int streamid) {
    // Gets the right sync obj to wait for messages for a given streamid
    // If the semaphore is not available, it creates one.
 
-   XrdSysSemWait *sem;
+   XrdSysSemaphore *sem;
 
    {
       XrdSysMutexHelper mtx(fMutex);
@@ -88,7 +88,7 @@ XrdSysSemWait *XrdClientInputBuffer::GetSyncObjOrMakeOne(int streamid) {
       sem = fSyncobjRepo.Find(buf);
 
       if (!sem) {
-	 sem = new XrdSysSemWait(0);
+	 sem = new XrdSysSemaphore(0);
 
          fSyncobjRepo.Rep(buf, sem);
 	 return sem;
@@ -111,7 +111,7 @@ XrdClientInputBuffer::XrdClientInputBuffer() {
 
 
 //_______________________________________________________________________
-int DeleteHashItem(const char *key, XrdSysSemWait *sem, void *Arg) {
+int DeleteHashItem(const char *key, XrdSysSemaphore *sem, void *Arg) {
 
    // This makes the Apply method delete the entry
    return -1;
@@ -146,7 +146,7 @@ int XrdClientInputBuffer::PutMsg(XrdClientMessage* m)
 {
    // Put message in the list
   int sz;
-  XrdSysSemWait *sem = 0;
+  XrdSysSemaphore *sem = 0;
 
    {
       XrdSysMutexHelper mtx(fMutex);
@@ -175,7 +175,7 @@ XrdClientMessage *XrdClientInputBuffer::GetMsg(int streamid, int secstimeout)
    // If there are no XrdClientMessages for the streamid, it waits for a number
    // of seconds for something to come
 
-   XrdSysSemWait *sem = 0;
+   XrdSysSemaphore *sem = 0;
    XrdClientMessage *res = 0, *m = 0;
 
    // Find the sem where to wait for a msg
