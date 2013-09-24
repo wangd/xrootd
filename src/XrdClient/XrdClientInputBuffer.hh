@@ -22,7 +22,6 @@
 
 #include "XrdClient/XrdClientMessage.hh"
 #include "XrdSys/XrdSysPthread.hh"
-#include "XrdSys/XrdSysSemWait.hh"
 #include "XrdOuc/XrdOucHash.hh"
 #include "XrdClient/XrdClientVector.hh"
 
@@ -35,15 +34,15 @@ private:
    XrdClientVector<XrdClientMessage*> fMsgQue;      // queue for incoming messages
    int                                fMsgIter;     // an iterator on it
 
-   XrdSysRecMutex                        fMutex;       // mutex to protect data structures
+   XrdSysRecMutex                     fMutex;       // mutex to protect data structures
 
-   XrdOucHash<XrdSysSemWait>          fSyncobjRepo;
+   XrdOucHash<XrdSysSemaphore>        fSyncobjRepo;
                                              // each streamid counts on a condition
                                              // variable to make the caller wait
                                              // until some data is available
 
 
-   XrdSysSemWait                      *GetSyncObjOrMakeOne(int streamid);
+   XrdSysSemaphore                    *GetSyncObjOrMakeOne(int streamid);
 
    int             MsgForStreamidCnt(int streamid);
 

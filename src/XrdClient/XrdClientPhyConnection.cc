@@ -286,9 +286,7 @@ void XrdClientPhyConnection::Disconnect()
 
 //____________________________________________________________________________
 bool XrdClientPhyConnection::CheckAutoTerm() {
-   bool doexit = FALSE;
 
-  {
    XrdSysMutexHelper l(fMutex);
 
    // Parametric asynchronous stuff
@@ -298,26 +296,13 @@ bool XrdClientPhyConnection::CheckAutoTerm() {
          Info(XrdClientDebug::kHIDEBUG,
               "CheckAutoTerm", "Self-Cancelling reader thread.");
 
-         {
-            XrdSysMutexHelper l(fMutex);
-            fReaderthreadrunning--;
-         }
+         fReaderthreadrunning--;
 
-         //delete fSocket;
-         //fSocket = 0;
+         return true;
 
-         doexit = TRUE;
-      }
-
-  }
-
-
-  if (doexit) {
-	UnlockChannel();
-        return true;
    }
 
-  return false;
+   return false;
 }
 
 

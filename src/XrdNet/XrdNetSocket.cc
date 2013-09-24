@@ -336,7 +336,7 @@ int XrdNetSocket::setOpts(int xfd, int opts, XrdSysError *eDest)
    const int one = 1;
    const SOCKLEN_t szone = (SOCKLEN_t)sizeof(one);
    static int tcpprotid = XrdSysDNS::getProtoID("tcp");
-   static struct linger liopts = {1, XRDNETSOCKET_LINGER};
+   struct linger liopts = {1, XRDNETSOCKET_LINGER};
    const SOCKLEN_t szlio = (SOCKLEN_t)sizeof(liopts);
 
    if (!(opts & XRDNET_NOCLOSEX) && fcntl(xfd, F_SETFD, FD_CLOEXEC))

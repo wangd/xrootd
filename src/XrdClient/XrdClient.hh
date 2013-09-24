@@ -43,7 +43,7 @@
 #include "XrdClient/XrdClientAbs.hh"
 #include "XrdOuc/XrdOucString.hh"
 #include "XrdClient/XrdClientThread.hh"
-#include "XrdSys/XrdSysSemWait.hh"
+#include "XrdSys/XrdSysPthread.hh"
 #include "XrdVersion.hh"
 #include <vector>
 #include <string>
@@ -114,7 +114,7 @@ private:
     XrdClientThread            *fOpenerTh;
 
     // Used to limit the maximum number of concurrent opens
-    static XrdSysSemWait        fConcOpenSem;
+    static XrdSysSemaphore      fConcOpenSem;
 
     bool                        fOpenWithRefresh;
 
