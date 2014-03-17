@@ -47,10 +47,12 @@ XrdVERSIONINFOREF(XrdgetProtocol);
 
 XrdSfsFileSystem *XrdXrootdloadFileSystem(XrdSysError *eDest,
                                           XrdSfsFileSystem *prevFS,
-                                          char *fslib, const char *cfn)
+                                          char *fslib, const char *cfn,
+                                          XrdOucEnv *envP)
 {
    XrdSysPlugin ofsLib(eDest,fslib,"fslib",&XrdVERSIONINFOVAR(XrdgetProtocol));
-   XrdSfsFileSystem *(*ep)(XrdSfsFileSystem *, XrdSysLogger *, const char *);
+   XrdSfsFileSystem *(*ep)(XrdSfsFileSystem *, XrdSysLogger *,
+                           const char *,       XrdOucEnv    *);
    XrdSfsFileSystem *FS;
 
 // Record the library path in the environment
@@ -59,13 +61,14 @@ XrdSfsFileSystem *XrdXrootdloadFileSystem(XrdSysError *eDest,
 
 // Get the file system object creator
 //
-   if (!(ep = (XrdSfsFileSystem *(*)(XrdSfsFileSystem *,XrdSysLogger *,const char *))
+   if (!(ep = (XrdSfsFileSystem *(*)(XrdSfsFileSystem *,XrdSysLogger *,
+                                     const char *,      XrdOucEnv    * ))
                                     ofsLib.getPlugin("XrdSfsGetFileSystem")))
        return 0;
 
 // Get the file system object
 //
-   if (!(FS = (*ep)(prevFS, eDest->logger(), cfn)))
+   if (!(FS = (*ep)(prevFS, eDest->logger(), cfn, envP)))
       {eDest->Emsg("Config", "Unable to create file system object via",fslib);
        return 0;
       }
