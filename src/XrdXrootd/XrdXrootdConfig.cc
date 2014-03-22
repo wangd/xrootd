@@ -135,9 +135,7 @@ int XrdXrootdProtocol::Configure(char *parms, XrdProtocol_Config *pi)
 
    extern XrdSfsFileSystem *XrdXrootdloadFileSystem(XrdSysError *, 
                                                     XrdSfsFileSystem *,
-                                                    char *, const char *,
-                                                    XrdOucEnv *);
-
+                                                    char *, const char *);
    extern XrdSfsFileSystem *XrdDigGetFS
                             (XrdSfsFileSystem *nativeFS,
                              XrdSysLogger     *Logger,
@@ -265,11 +263,7 @@ int XrdXrootdProtocol::Configure(char *parms, XrdProtocol_Config *pi)
 //
    if (FSLib[0])
       {TRACE(DEBUG, "Loading base filesystem library " <<FSLib[0]);
-       XrdOucEnv myEnv;
-       myEnv.PutPtr("XrdInet*", (void *)(pi->NetTCP));
-       myEnv.PutPtr("XrdSecGetProtocol*", secGetProt);
-       myEnv.PutPtr("XrdScheduler*", pi->Sched);
-       osFS = XrdXrootdloadFileSystem(&eDest, 0, FSLib[0], pi->ConfigFN,&myEnv);
+       osFS = XrdXrootdloadFileSystem(&eDest, 0, FSLib[0], pi->ConfigFN);
       } else {
        osFS = XrdSfsGetDefaultFileSystem(0,eDest.logger(),pi->ConfigFN,&myEnv);
       }
@@ -285,7 +279,7 @@ int XrdXrootdProtocol::Configure(char *parms, XrdProtocol_Config *pi)
 //
    if (FSLib[1])
       {TRACE(DEBUG, "Loading wrapper filesystem library " <<FSLib[1]);
-       osFS = XrdXrootdloadFileSystem(&eDest, osFS, FSLib[1], pi->ConfigFN, 0);
+       osFS = XrdXrootdloadFileSystem(&eDest, osFS, FSLib[1], pi->ConfigFN);
        if (!osFS)
           {eDest.Emsg("Config", "Unable to load file system wrapper.");
            return 0;
