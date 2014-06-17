@@ -69,6 +69,7 @@ set( XROOTD_PUBLIC_HEADERS
   XrdOuc/XrdOucEnum.hh
   XrdPosix/XrdPosixCallBack.hh
   XrdPosix/XrdPosixExtern.hh
+  XrdPosix/XrdPosixLinkage.hh
   XrdPosix/XrdPosixOsDep.hh
   XrdPosix/XrdPosixXrootd.hh
   XrdPosix/XrdPosixXrootdPath.hh
@@ -78,6 +79,15 @@ set( XROOTD_PUBLIC_HEADERS
   XrdSfs/XrdSfsDio.hh
   XrdSfs/XrdSfsXio.hh
   XrdSfs/XrdSfsInterface.hh
+  XrdSsi/XrdSsiCluster.hh
+  XrdSsi/XrdSsiErrInfo.hh
+  XrdSsi/XrdSsiLogger.hh
+  XrdSsi/XrdSsiRequest.hh
+  XrdSsi/XrdSsiRespInfo.hh
+  XrdSsi/XrdSsiResponder.hh
+  XrdSsi/XrdSsiService.hh
+  XrdSsi/XrdSsiSession.hh
+  XrdSsi/XrdSsiStream.hh
   XrdSys/XrdSysAtomics.hh
   XrdSys/XrdSysDNS.hh
   XrdSys/XrdSysError.hh
