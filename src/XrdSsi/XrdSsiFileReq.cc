@@ -416,6 +416,7 @@ XrdSfsXferSize XrdSsiFileReq::Read(bool           &done,      // Out
 
 // A read should never be issued unless a response has been set
 //
+   printState();
    if (myState != doRsp)
       {done = true;
        return (myState == odRsp ? 0 : Emsg(epname, ENOMSG, "read"));
@@ -467,6 +468,20 @@ XrdSfsXferSize XrdSsiFileReq::Read(bool           &done,      // Out
    myState = erRsp;
    done    = true;
    return Emsg(epname, EFAULT, "read");
+}
+
+void XrdSsiFileReq::printState() {
+    char pfx[] = "XrdSsiFileReq";
+    
+    switch(myState) {
+    case wtReq: Log.Emsg(pfx, tident, "State is wtReq"); break;
+    case xqReq: Log.Emsg(pfx, tident, "State is xqReq"); break;
+    case wtRsp: Log.Emsg(pfx, tident, "State is wtRsp"); break;
+    case doRsp: Log.Emsg(pfx, tident, "State is doRsp"); break;
+    case odRsp: Log.Emsg(pfx, tident, "State is odRsp"); break;
+    case erRsp: Log.Emsg(pfx, tident, "State is erRsp"); break;
+    case rsEnd: Log.Emsg(pfx, tident, "State is rsEnd"); break;
+    }    
 }
 
 /******************************************************************************/

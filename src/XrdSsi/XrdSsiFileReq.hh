@@ -109,6 +109,7 @@ int                    sendStrmA(XrdSsiStream *strmP, XrdSfsDio *sfDio,
 void                   Recycle();
 void                   WakeInfo(XrdSsiRRInfo *rdyInfo);
 void                   WakeUp();
+    void printState();
 
 enum reqState {wtReq=0, xqReq, wtRsp, doRsp, odRsp, erRsp, rsEnd};
 
